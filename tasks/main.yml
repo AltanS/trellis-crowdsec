@@ -1,0 +1,304 @@
+---
+# CrowdSec Security Engine for Trellis
+# https://github.com/bild/trellis-crowdsec
+
+# =============================================================================
+# Legacy Cleanup: Disable fail2ban and ferm when migrating to CrowdSec
+# =============================================================================
+- name: Check if fail2ban is installed
+  ansible.builtin.stat:
+    path: /etc/fail2ban
+  register: fail2ban_installed
+
+- name: Stop and disable fail2ban service
+  ansible.builtin.service:
+    name: fail2ban
+    state: stopped
+    enabled: false
+  when:
+    - crowdsec_enabled | bool
+    - crowdsec_disable_legacy | default(true)
+    - fail2ban_installed.stat.exists
+  failed_when: false
+
+- name: Check if ferm is installed
+  ansible.builtin.stat:
+    path: /etc/ferm
+  register: ferm_installed
+
+- name: Stop and disable ferm service
+  ansible.builtin.service:
+    name: ferm
+    state: stopped
+    enabled: false
+  when:
+    - crowdsec_enabled | bool
+    - crowdsec_disable_legacy | default(true)
+    - ferm_installed.stat.exists
+  failed_when: false
+
+- name: Flush ferm iptables rules
+  ansible.builtin.command:
+    cmd: iptables -F
+  when:
+    - crowdsec_enabled | bool
+    - crowdsec_disable_legacy | default(true)
+    - crowdsec_flush_legacy_rules | default(false)
+    - ferm_installed.stat.exists
+  failed_when: false
+  changed_when: true
+
+# =============================================================================
+# Package Installation
+# =============================================================================
+- name: Install CrowdSec prerequisites
+  ansible.builtin.apt:
+    name:
+      - curl
+      - gnupg
+    state: present
+    update_cache: true
+  when: crowdsec_enabled | bool
+
+- name: Add CrowdSec GPG key
+  ansible.builtin.apt_key:
+    url: https://packagecloud.io/crowdsec/crowdsec/gpgkey
+    state: present
+  when: crowdsec_enabled | bool
+
+- name: Add CrowdSec repository
+  ansible.builtin.apt_repository:
+    repo: "deb https://packagecloud.io/crowdsec/crowdsec/{{ ansible_distribution | lower }}/ {{ ansible_distribution_release }} main"
+    state: present
+    filename: crowdsec
+  when: crowdsec_enabled | bool
+
+- name: Install CrowdSec packages
+  ansible.builtin.apt:
+    name: "{{ crowdsec_packages }}"
+    state: present
+    update_cache: true
+  when: crowdsec_enabled | bool
+  notify: Restart crowdsec
+
+- name: Ensure CrowdSec service is enabled and started
+  ansible.builtin.service:
+    name: crowdsec
+    enabled: "{{ crowdsec_service_enabled }}"
+    state: "{{ crowdsec_service_state }}"
+  when: crowdsec_enabled | bool
+
+- name: Enroll in CrowdSec Console
+  ansible.builtin.command:
+    cmd: cscli console enroll {{ crowdsec_console_token }}
+  when:
+    - crowdsec_enabled | bool
+    - crowdsec_console_token | length > 0
+  register: console_enroll
+  changed_when: "'already enrolled' not in console_enroll.stderr"
+  failed_when: false
+
+# =============================================================================
+# Hub Collections and Scenarios
+# =============================================================================
+- name: Update CrowdSec hub
+  ansible.builtin.command:
+    cmd: cscli hub update
+  changed_when: false
+  when: crowdsec_enabled | bool
+
+- name: Install CrowdSec collections
+  ansible.builtin.command:
+    cmd: "cscli collections install {{ item }}"
+  loop: "{{ crowdsec_collections }}"
+  register: collection_install
+  changed_when: "'overwrite' not in collection_install.stderr and 'already' not in collection_install.stderr"
+  when: crowdsec_enabled | bool
+
+- name: Install additional scenarios
+  ansible.builtin.command:
+    cmd: "cscli scenarios install {{ item }}"
+  loop: "{{ crowdsec_scenarios }}"
+  register: scenario_install
+  changed_when: "'overwrite' not in scenario_install.stderr and 'already' not in scenario_install.stderr"
+  when:
+    - crowdsec_enabled | bool
+    - crowdsec_scenarios | length > 0
+
+- name: Install additional parsers
+  ansible.builtin.command:
+    cmd: "cscli parsers install {{ item }}"
+  loop: "{{ crowdsec_parsers }}"
+  register: parser_install
+  changed_when: "'overwrite' not in parser_install.stderr and 'already' not in parser_install.stderr"
+  when:
+    - crowdsec_enabled | bool
+    - crowdsec_parsers | length > 0
+  notify: Reload crowdsec
+
+# =============================================================================
+# Log Acquisition
+# =============================================================================
+- name: Remove default CrowdSec acquisition files
+  ansible.builtin.file:
+    path: /etc/crowdsec/acquis.d
+    state: absent
+  notify: Reload crowdsec
+  when: crowdsec_enabled | bool
+
+- name: Configure CrowdSec log acquisition
+  ansible.builtin.template:
+    src: acquis.yaml.j2
+    dest: /etc/crowdsec/acquis.yaml
+    owner: root
+    group: root
+    mode: '0644'
+  notify: Reload crowdsec
+  when: crowdsec_enabled | bool
+
+# =============================================================================
+# Firewall Bouncer
+# =============================================================================
+- name: Install CrowdSec Firewall Bouncer
+  ansible.builtin.apt:
+    name: "{{ crowdsec_firewall_bouncer_package }}"
+    state: present
+  when:
+    - crowdsec_enabled | bool
+    - crowdsec_firewall_bouncer_enabled | bool
+
+- name: Check if firewall bouncer is already registered
+  ansible.builtin.command:
+    cmd: cscli bouncers list -o raw
+  register: bouncer_list
+  changed_when: false
+  when:
+    - crowdsec_enabled | bool
+    - crowdsec_firewall_bouncer_enabled | bool
+
+- name: Register firewall bouncer with LAPI
+  ansible.builtin.command:
+    cmd: cscli bouncers add firewall-bouncer -o raw
+  register: bouncer_key
+  changed_when: bouncer_key.rc == 0
+  failed_when: false
+  when:
+    - crowdsec_enabled | bool
+    - crowdsec_firewall_bouncer_enabled | bool
+    - "'firewall-bouncer' not in bouncer_list.stdout"
+
+- name: Configure firewall bouncer API key
+  ansible.builtin.lineinfile:
+    path: /etc/crowdsec/bouncers/crowdsec-firewall-bouncer.yaml
+    regexp: '^api_key:'
+    line: "api_key: {{ bouncer_key.stdout }}"
+  when:
+    - crowdsec_enabled | bool
+    - crowdsec_firewall_bouncer_enabled | bool
+    - bouncer_key is defined
+    - bouncer_key.rc is defined
+    - bouncer_key.rc == 0
+  notify: Restart crowdsec-firewall-bouncer
+
+- name: Ensure firewall bouncer service is enabled and started
+  ansible.builtin.service:
+    name: crowdsec-firewall-bouncer
+    enabled: "{{ crowdsec_firewall_bouncer_service_enabled }}"
+    state: "{{ crowdsec_firewall_bouncer_service_state }}"
+  when:
+    - crowdsec_enabled | bool
+    - crowdsec_firewall_bouncer_enabled | bool
+
+# =============================================================================
+# IP Whitelists
+# =============================================================================
+- name: Ensure CrowdSec parser directory exists
+  ansible.builtin.file:
+    path: /etc/crowdsec/parsers/s02-enrich
+    state: directory
+    owner: root
+    group: root
+    mode: '0755'
+  when:
+    - crowdsec_enabled | bool
+    - crowdsec_whitelists | length > 0
+
+- name: Configure CrowdSec IP whitelists
+  ansible.builtin.template:
+    src: whitelists.yaml.j2
+    dest: /etc/crowdsec/parsers/s02-enrich/ansible-whitelists.yaml
+    owner: root
+    group: root
+    mode: '0644'
+  notify: Reload crowdsec
+  when:
+    - crowdsec_enabled | bool
+    - crowdsec_whitelists | length > 0
+
+# =============================================================================
+# Blocked IPs Import
+# =============================================================================
+- name: Import blocked single IPs as CrowdSec decisions
+  ansible.builtin.command:
+    cmd: >
+      cscli decisions add
+      --ip "{{ item }}"
+      --duration {{ crowdsec_blocked_ips_duration }}
+      --reason "Imported from blocked_ips"
+      --type ban
+  loop: "{{ crowdsec_blocked_ips | select('match', '^[0-9.]+$') | list }}"
+  register: decision_add_ip
+  changed_when: "'already exists' not in decision_add_ip.stderr | default('')"
+  failed_when:
+    - decision_add_ip.rc != 0
+    - "'already exists' not in decision_add_ip.stderr | default('')"
+  when:
+    - crowdsec_enabled | bool
+    - crowdsec_import_blocked_ips | bool
+    - crowdsec_blocked_ips | length > 0
+
+- name: Import blocked CIDR ranges as CrowdSec decisions
+  ansible.builtin.command:
+    cmd: >
+      cscli decisions add
+      --range "{{ item }}"
+      --duration {{ crowdsec_blocked_ips_duration }}
+      --reason "Imported from blocked_ips"
+      --type ban
+  loop: "{{ crowdsec_blocked_ips | select('match', '.*/[0-9]+$') | list }}"
+  register: decision_add_range
+  changed_when: "'already exists' not in decision_add_range.stderr | default('')"
+  failed_when:
+    - decision_add_range.rc != 0
+    - "'already exists' not in decision_add_range.stderr | default('')"
+  when:
+    - crowdsec_enabled | bool
+    - crowdsec_import_blocked_ips | bool
+    - crowdsec_blocked_ips | length > 0
+
+# =============================================================================
+# Custom Scenarios
+# =============================================================================
+- name: Ensure CrowdSec scenarios directory exists
+  ansible.builtin.file:
+    path: /etc/crowdsec/scenarios
+    state: directory
+    owner: root
+    group: root
+    mode: '0755'
+  when:
+    - crowdsec_enabled | bool
+    - crowdsec_custom_scenarios | length > 0
+
+- name: Deploy custom CrowdSec scenarios
+  ansible.builtin.template:
+    src: scenarios/custom-scenario.yaml.j2
+    dest: "/etc/crowdsec/scenarios/{{ item.name }}.yaml"
+    owner: root
+    group: root
+    mode: '0644'
+  loop: "{{ crowdsec_custom_scenarios }}"
+  notify: Reload crowdsec
+  when:
+    - crowdsec_enabled | bool
+    - crowdsec_custom_scenarios | length > 0

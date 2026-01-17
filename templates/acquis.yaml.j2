@@ -1,0 +1,17 @@
+# CrowdSec Log Acquisition Configuration
+# Managed by Ansible - do not edit manually
+
+{% for acq in crowdsec_acquisition %}
+filenames:
+{% for filename in acq.filenames %}
+  - {{ filename }}
+{% endfor %}
+labels:
+{% for key, value in acq.labels.items() %}
+  {{ key }}: {{ value }}
+{% endfor %}
+{% if not loop.last %}
+
+---
+{% endif %}
+{% endfor %}

@@ -1,0 +1,30 @@
+---
+dependencies: []
+
+galaxy_info:
+  author: Altan
+  description: CrowdSec Security Engine for Trellis WordPress deployments
+  license: MIT
+  role_name: trellis_crowdsec
+  namespace: bild
+  min_ansible_version: "2.10"
+
+  platforms:
+    - name: Ubuntu
+      versions:
+        - "20.04"
+        - "22.04"
+        - "24.04"
+    - name: Debian
+      versions:
+        - "11"
+        - "12"
+
+  galaxy_tags:
+    - security
+    - crowdsec
+    - firewall
+    - wordpress
+    - trellis
+    - intrusion-detection
+    - fail2ban-replacement

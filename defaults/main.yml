@@ -1,0 +1,135 @@
+---
+# =============================================================================
+# CrowdSec Role for Trellis
+# =============================================================================
+
+# Master switch - set to false to skip all CrowdSec tasks
+crowdsec_enabled: true
+
+# =============================================================================
+# Legacy Migration (fail2ban + ferm)
+# =============================================================================
+
+# Stop and disable fail2ban/ferm when CrowdSec is enabled
+crowdsec_disable_legacy: true
+
+# Flush iptables rules from ferm (use with caution - only after confirming CrowdSec works)
+crowdsec_flush_legacy_rules: false
+
+# =============================================================================
+# Package Installation
+# =============================================================================
+
+crowdsec_packages:
+  - crowdsec
+
+crowdsec_service_enabled: true
+crowdsec_service_state: started
+
+# =============================================================================
+# CrowdSec Hub - Collections, Parsers, Scenarios
+# =============================================================================
+
+# Collections to install (includes parsers + scenarios)
+# For Trellis WordPress, recommended collections are set here
+crowdsec_collections:
+  - crowdsecurity/linux
+  - crowdsecurity/nginx
+  - crowdsecurity/sshd
+  - crowdsecurity/base-http-scenarios
+  - crowdsecurity/http-cve
+  - crowdsecurity/wordpress
+  - crowdsecurity/whitelist-good-actors
+
+# Additional parsers (beyond what collections provide)
+crowdsec_parsers: []
+
+# Additional scenarios (beyond what collections provide)
+crowdsec_scenarios: []
+
+# =============================================================================
+# Console Enrollment (optional - for CrowdSec Console dashboard)
+# =============================================================================
+
+crowdsec_console_token: ""
+
+# =============================================================================
+# Log Acquisition
+# =============================================================================
+
+# Trellis-aware defaults: logs are at /srv/www/{site}/logs/
+# Override in group_vars if using non-standard paths
+crowdsec_acquisition:
+  - filenames:
+      - /srv/www/*/logs/access.log
+    labels:
+      type: nginx
+  - filenames:
+      - /srv/www/*/logs/error.log
+    labels:
+      type: nginx
+  - filenames:
+      - /var/log/auth.log
+    labels:
+      type: syslog
+
+# =============================================================================
+# Firewall Bouncer
+# =============================================================================
+
+crowdsec_firewall_bouncer_enabled: true
+crowdsec_firewall_bouncer_package: crowdsec-firewall-bouncer-nftables
+crowdsec_firewall_bouncer_mode: nftables
+
+crowdsec_firewall_bouncer_service_enabled: true
+crowdsec_firewall_bouncer_service_state: started
+
+# =============================================================================
+# IP Whitelists
+# =============================================================================
+
+# Trellis ip_whitelist - define here or override in group_vars
+# Used by CrowdSec whitelist and can be reused by other roles
+ip_whitelist:
+  - 127.0.0.0/8
+
+# IPs that should never be blocked by CrowdSec
+# Automatically derives from ip_whitelist, filtering empty values
+crowdsec_whitelists: "{{ ip_whitelist | default([]) | select('string') | reject('==', '') | list }}"
+
+# =============================================================================
+# Blocked IPs Import
+# =============================================================================
+
+# Trellis blocked_ips - define here or override in group_vars
+# IPs to permanently block
+blocked_ips: []
+
+# Import blocked_ips as CrowdSec decisions
+crowdsec_import_blocked_ips: true
+
+# IPs/CIDRs to block - derives from blocked_ips by default
+crowdsec_blocked_ips: "{{ blocked_ips | default([]) }}"
+
+# Duration for imported blocked IPs (10 years)
+crowdsec_blocked_ips_duration: "87600h"
+
+# =============================================================================
+# Custom Scenarios
+# =============================================================================
+
+# Define custom scenarios (ported from fail2ban or custom rules)
+crowdsec_custom_scenarios: []
+# Example:
+#   - name: wordpress-admin-exploit
+#     description: "Detect WordPress admin exploitation attempts"
+#     type: leaky
+#     filter: "evt.Meta.http_path contains '/wp-login.php' and evt.Meta.http_args contains 'lostpassword'"
+#     groupby: evt.Meta.source_ip
+#     capacity: 1
+#     leakspeed: 24h
+#     blackhole: 24h
+#     labels:
+#       service: wordpress
+#       type: exploit
+#       remediation: true
