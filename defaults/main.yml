@@ -69,6 +69,11 @@ crowdsec_acquisition:
     labels:
       type: nginx
   - filenames:
+      - /var/log/nginx/access.log
+      - /var/log/nginx/error.log
+    labels:
+      type: nginx
+  - filenames:
       - /var/log/auth.log
     labels:
       type: syslog
