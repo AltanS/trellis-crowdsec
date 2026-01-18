@@ -176,6 +176,9 @@ sudo cscli decisions add --ip 1.2.3.4 --duration 24h --reason "Manual ban"
 # Unban an IP
 sudo cscli decisions delete --ip 1.2.3.4
 
+# Unban all IPs banned by a specific scenario
+sudo cscli decisions delete --scenario crowdsecurity/http-probing
+
 # Check collections
 sudo cscli collections list
 sudo cscli hub list
