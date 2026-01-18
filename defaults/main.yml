@@ -47,6 +47,18 @@ crowdsec_parsers: []
 # Additional scenarios (beyond what collections provide)
 crowdsec_scenarios: []
 
+# Scenarios to remove (useful for disabling false-positive-prone scenarios from collections)
+# Use full scenario names as shown by `cscli scenarios list`
+crowdsec_scenarios_remove: []
+# Example - disable http-probing entirely:
+#   - crowdsecurity/http-probing
+
+# HTTP Probing scenario customization
+# The default http-probing scenario triggers on 404, 403, and 400 responses.
+# For WordPress/REST APIs, 404s are often legitimate ("resource not found").
+# Set to true to deploy a modified version that only triggers on 403/400.
+crowdsec_http_probing_exclude_404: false
+
 # =============================================================================
 # Console Enrollment (optional - for CrowdSec Console dashboard)
 # =============================================================================

@@ -125,6 +125,18 @@
     - crowdsec_enabled | bool
     - crowdsec_scenarios | length > 0
 
+- name: Remove unwanted scenarios
+  ansible.builtin.command:
+    cmd: "cscli scenarios remove {{ item }} --force"
+  loop: "{{ crowdsec_scenarios_remove }}"
+  register: scenario_remove
+  changed_when: "'Removed' in scenario_remove.stdout or 'removed' in scenario_remove.stdout"
+  failed_when: false
+  when:
+    - crowdsec_enabled | bool
+    - crowdsec_scenarios_remove | length > 0
+  notify: Reload crowdsec
+
 - name: Install additional parsers
   ansible.builtin.command:
     cmd: "cscli parsers install {{ item }}"
@@ -288,7 +300,28 @@
     mode: '0755'
   when:
     - crowdsec_enabled | bool
-    - crowdsec_custom_scenarios | length > 0
+    - (crowdsec_custom_scenarios | length > 0) or (crowdsec_http_probing_exclude_404 | bool)
+
+- name: Deploy http-probing override (exclude 404)
+  ansible.builtin.template:
+    src: scenarios/http-probing-no404.yaml.j2
+    dest: /etc/crowdsec/scenarios/http-probing.yaml
+    owner: root
+    group: root
+    mode: '0644'
+  notify: Reload crowdsec
+  when:
+    - crowdsec_enabled | bool
+    - crowdsec_http_probing_exclude_404 | bool
+
+- name: Remove http-probing override when disabled
+  ansible.builtin.file:
+    path: /etc/crowdsec/scenarios/http-probing.yaml
+    state: absent
+  notify: Reload crowdsec
+  when:
+    - crowdsec_enabled | bool
+    - not (crowdsec_http_probing_exclude_404 | bool)
 
 - name: Deploy custom CrowdSec scenarios
   ansible.builtin.template:

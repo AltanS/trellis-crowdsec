@@ -105,6 +105,26 @@ crowdsec_custom_scenarios:
       remediation: true
 ```
 
+### Handling HTTP Probing False Positives
+
+The `http-probing` scenario bans IPs that hit 10+ paths returning 404/403/400. This causes false positives on WordPress REST APIs where 404 means "resource not found" (normal behavior).
+
+**Option 1: Exclude 404s (Recommended)**
+
+Keep probing detection but exclude 404 responses:
+
+```yaml
+# Detect probing on 403/400 only, ignore 404s
+crowdsec_http_probing_exclude_404: true
+```
+
+**Option 2: Disable http-probing entirely**
+
+```yaml
+crowdsec_scenarios_remove:
+  - crowdsecurity/http-probing
+```
+
 ## Variables Reference
 
 ### Trellis Integration Variables
@@ -124,6 +144,8 @@ crowdsec_custom_scenarios:
 | `crowdsec_collections`              | See defaults                         | Hub collections to install        |
 | `crowdsec_parsers`                  | `[]`                                 | Additional parsers                |
 | `crowdsec_scenarios`                | `[]`                                 | Additional scenarios              |
+| `crowdsec_scenarios_remove`         | `[]`                                 | Scenarios to remove               |
+| `crowdsec_http_probing_exclude_404` | `false`                              | Exclude 404s from http-probing    |
 | `crowdsec_acquisition`              | Trellis paths                        | Log file acquisition              |
 | `crowdsec_firewall_bouncer_enabled` | `true`                               | Install firewall bouncer          |
 | `crowdsec_firewall_bouncer_package` | `crowdsec-firewall-bouncer-nftables` | Bouncer package                   |
