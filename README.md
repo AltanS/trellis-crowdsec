@@ -28,7 +28,7 @@ Replaces fail2ban and ferm with a modern, community-driven intrusion detection a
 roles:
   - name: trellis-crowdsec
     src: https://github.com/AltanS/trellis-crowdsec
-    version: v0.1.1  # or 'main' for latest
+    version: v0.3.0  # or 'main' for latest
 ```
 
 Then install:

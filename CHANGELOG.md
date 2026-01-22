@@ -7,6 +7,32 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.3.0] - 2025-01-22
+
+### Added
+- Built-in attack detection scenarios (enabled by default):
+  - `actuator-probe` - Spring Boot actuator endpoint probing
+  - `debug-fuzzing` - Debug/error endpoint probing
+  - `custom-bad-user-agent` - Immediate block for scanner user agents (supplements Hub)
+  - `ssrf-callback` - SSRF attempts with callback domains (burpcollaborator, interact.sh, etc.)
+- Configurable ban durations via custom `profiles.yaml`
+- Per-scenario parameters (capacity, leakspeed, blackhole, ban duration)
+
+### Changed
+- Refactored scenario tasks to use loops (improved maintainability)
+- Simplified configuration by removing redundant variables
+- Use `ip_whitelist` and `blocked_ips` directly (removed indirection)
+
+### Removed
+- `crowdsec_packages` variable (hardcoded)
+- `crowdsec_service_enabled/state` variables (hardcoded)
+- `crowdsec_firewall_bouncer_mode` variable (unused)
+- `crowdsec_firewall_bouncer_package` variable (hardcoded)
+- `crowdsec_firewall_bouncer_service_enabled/state` variables (hardcoded)
+- `crowdsec_whitelists` variable (use `ip_whitelist` directly)
+- `crowdsec_blocked_ips` variable (use `blocked_ips` directly)
+- `crowdsec_import_blocked_ips` variable (simplified)
+
 ## [0.2.0] - 2025-01-18
 
 ### Added
@@ -33,7 +59,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 - Automatic fail2ban/ferm migration (disable legacy services)
 - Legacy iptables cleanup option
 
-[Unreleased]: https://github.com/AltanS/trellis-crowdsec/compare/v0.2.0...HEAD
+[Unreleased]: https://github.com/AltanS/trellis-crowdsec/compare/v0.3.0...HEAD
+[0.3.0]: https://github.com/AltanS/trellis-crowdsec/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/AltanS/trellis-crowdsec/compare/v0.1.1...v0.2.0
 [0.1.1]: https://github.com/AltanS/trellis-crowdsec/compare/v0.1.0...v0.1.1
 [0.1.0]: https://github.com/AltanS/trellis-crowdsec/releases/tag/v0.1.0
