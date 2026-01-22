@@ -7,7 +7,7 @@ whitelist:
   reason: "Trusted infrastructure - configured via Ansible"
 {% set single_ips = [] %}
 {% set cidr_ranges = [] %}
-{% for entry in crowdsec_whitelists %}
+{% for entry in ip_whitelist | default([]) | select('string') | reject('==', '') | list %}
 {%   if '/' in entry %}
 {%     set _ = cidr_ranges.append(entry) %}
 {%   else %}

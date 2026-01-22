@@ -73,9 +73,9 @@
     filename: crowdsec
   when: crowdsec_enabled | bool
 
-- name: Install CrowdSec packages
+- name: Install CrowdSec
   ansible.builtin.apt:
-    name: "{{ crowdsec_packages }}"
+    name: crowdsec
     state: present
     update_cache: true
   when: crowdsec_enabled | bool
@@ -84,8 +84,8 @@
 - name: Ensure CrowdSec service is enabled and started
   ansible.builtin.service:
     name: crowdsec
-    enabled: "{{ crowdsec_service_enabled }}"
-    state: "{{ crowdsec_service_state }}"
+    enabled: true
+    state: started
   when: crowdsec_enabled | bool
 
 - name: Enroll in CrowdSec Console
@@ -186,7 +186,7 @@
 # =============================================================================
 - name: Install CrowdSec Firewall Bouncer
   ansible.builtin.apt:
-    name: "{{ crowdsec_firewall_bouncer_package }}"
+    name: crowdsec-firewall-bouncer-nftables
     state: present
   when:
     - crowdsec_enabled | bool
@@ -228,8 +228,8 @@
 - name: Ensure firewall bouncer service is enabled and started
   ansible.builtin.service:
     name: crowdsec-firewall-bouncer
-    enabled: "{{ crowdsec_firewall_bouncer_service_enabled }}"
-    state: "{{ crowdsec_firewall_bouncer_service_state }}"
+    enabled: true
+    state: started
   when:
     - crowdsec_enabled | bool
     - crowdsec_firewall_bouncer_enabled | bool
@@ -246,7 +246,7 @@
     mode: '0755'
   when:
     - crowdsec_enabled | bool
-    - crowdsec_whitelists | length > 0
+    - ip_whitelist | default([]) | length > 0
 
 - name: Configure CrowdSec IP whitelists
   ansible.builtin.template:
@@ -258,7 +258,7 @@
   notify: Reload crowdsec
   when:
     - crowdsec_enabled | bool
-    - crowdsec_whitelists | length > 0
+    - ip_whitelist | default([]) | length > 0
 
 # =============================================================================
 # Blocked IPs Import
@@ -271,7 +271,7 @@
       --duration {{ crowdsec_blocked_ips_duration }}
       --reason "Imported from blocked_ips"
       --type ban
-  loop: "{{ crowdsec_blocked_ips | select('match', '^[0-9.]+$') | list }}"
+  loop: "{{ blocked_ips | default([]) | select('match', '^[0-9.]+$') | list }}"
   register: decision_add_ip
   changed_when: "'already exists' not in decision_add_ip.stderr | default('')"
   failed_when:
@@ -279,8 +279,7 @@
     - "'already exists' not in decision_add_ip.stderr | default('')"
   when:
     - crowdsec_enabled | bool
-    - crowdsec_import_blocked_ips | bool
-    - crowdsec_blocked_ips | length > 0
+    - blocked_ips | default([]) | length > 0
 
 - name: Import blocked CIDR ranges as CrowdSec decisions
   ansible.builtin.command:
@@ -290,7 +289,7 @@
       --duration {{ crowdsec_blocked_ips_duration }}
       --reason "Imported from blocked_ips"
       --type ban
-  loop: "{{ crowdsec_blocked_ips | select('match', '.*/[0-9]+$') | list }}"
+  loop: "{{ blocked_ips | default([]) | select('match', '.*/[0-9]+$') | list }}"
   register: decision_add_range
   changed_when: "'already exists' not in decision_add_range.stderr | default('')"
   failed_when:
@@ -298,8 +297,7 @@
     - "'already exists' not in decision_add_range.stderr | default('')"
   when:
     - crowdsec_enabled | bool
-    - crowdsec_import_blocked_ips | bool
-    - crowdsec_blocked_ips | length > 0
+    - blocked_ips | default([]) | length > 0
 
 # =============================================================================
 # Custom Scenarios
@@ -357,94 +355,38 @@
 # =============================================================================
 # Built-in Scenarios
 # =============================================================================
-- name: Deploy actuator-probe scenario
+- name: Deploy built-in scenarios
   ansible.builtin.template:
-    src: scenarios/actuator-probe.yaml.j2
-    dest: /etc/crowdsec/scenarios/actuator-probe.yaml
+    src: "scenarios/{{ item.template }}.yaml.j2"
+    dest: "/etc/crowdsec/scenarios/{{ item.template }}.yaml"
     owner: root
     group: root
     mode: '0644'
+  loop:
+    - { template: actuator-probe, enabled: "{{ crowdsec_scenario_actuator_probe }}" }
+    - { template: debug-fuzzing, enabled: "{{ crowdsec_scenario_debug_fuzzing }}" }
+    - { template: custom-bad-user-agent, enabled: "{{ crowdsec_scenario_custom_bad_user_agent }}" }
+    - { template: ssrf-callback, enabled: "{{ crowdsec_scenario_ssrf_callback }}" }
+  loop_control:
+    label: "{{ item.template }}"
   notify: Reload crowdsec
   when:
     - crowdsec_enabled | bool
-    - crowdsec_scenario_actuator_probe | bool
+    - item.enabled | bool
 
-- name: Remove actuator-probe scenario when disabled
+- name: Remove disabled built-in scenarios
   ansible.builtin.file:
-    path: /etc/crowdsec/scenarios/actuator-probe.yaml
+    path: "/etc/crowdsec/scenarios/{{ item.template }}.yaml"
     state: absent
+  loop:
+    - { template: actuator-probe, enabled: "{{ crowdsec_scenario_actuator_probe }}" }
+    - { template: debug-fuzzing, enabled: "{{ crowdsec_scenario_debug_fuzzing }}" }
+    - { template: custom-bad-user-agent, enabled: "{{ crowdsec_scenario_custom_bad_user_agent }}" }
+    - { template: ssrf-callback, enabled: "{{ crowdsec_scenario_ssrf_callback }}" }
+    - { template: bad-user-agent, enabled: false }  # Legacy cleanup
+  loop_control:
+    label: "{{ item.template }}"
   notify: Reload crowdsec
   when:
     - crowdsec_enabled | bool
-    - not (crowdsec_scenario_actuator_probe | bool)
-
-- name: Deploy debug-fuzzing scenario
-  ansible.builtin.template:
-    src: scenarios/debug-fuzzing.yaml.j2
-    dest: /etc/crowdsec/scenarios/debug-fuzzing.yaml
-    owner: root
-    group: root
-    mode: '0644'
-  notify: Reload crowdsec
-  when:
-    - crowdsec_enabled | bool
-    - crowdsec_scenario_debug_fuzzing | bool
-
-- name: Remove debug-fuzzing scenario when disabled
-  ansible.builtin.file:
-    path: /etc/crowdsec/scenarios/debug-fuzzing.yaml
-    state: absent
-  notify: Reload crowdsec
-  when:
-    - crowdsec_enabled | bool
-    - not (crowdsec_scenario_debug_fuzzing | bool)
-
-- name: Deploy custom-bad-user-agent scenario
-  ansible.builtin.template:
-    src: scenarios/custom-bad-user-agent.yaml.j2
-    dest: /etc/crowdsec/scenarios/custom-bad-user-agent.yaml
-    owner: root
-    group: root
-    mode: '0644'
-  notify: Reload crowdsec
-  when:
-    - crowdsec_enabled | bool
-    - crowdsec_scenario_custom_bad_user_agent | bool
-
-- name: Remove custom-bad-user-agent scenario when disabled
-  ansible.builtin.file:
-    path: /etc/crowdsec/scenarios/custom-bad-user-agent.yaml
-    state: absent
-  notify: Reload crowdsec
-  when:
-    - crowdsec_enabled | bool
-    - not (crowdsec_scenario_custom_bad_user_agent | bool)
-
-- name: Remove legacy bad-user-agent scenario
-  ansible.builtin.file:
-    path: /etc/crowdsec/scenarios/bad-user-agent.yaml
-    state: absent
-  notify: Reload crowdsec
-  when:
-    - crowdsec_enabled | bool
-
-- name: Deploy ssrf-callback scenario
-  ansible.builtin.template:
-    src: scenarios/ssrf-callback.yaml.j2
-    dest: /etc/crowdsec/scenarios/ssrf-callback.yaml
-    owner: root
-    group: root
-    mode: '0644'
-  notify: Reload crowdsec
-  when:
-    - crowdsec_enabled | bool
-    - crowdsec_scenario_ssrf_callback | bool
-
-- name: Remove ssrf-callback scenario when disabled
-  ansible.builtin.file:
-    path: /etc/crowdsec/scenarios/ssrf-callback.yaml
-    state: absent
-  notify: Reload crowdsec
-  when:
-    - crowdsec_enabled | bool
-    - not (crowdsec_scenario_ssrf_callback | bool)
+    - not (item.enabled | bool)

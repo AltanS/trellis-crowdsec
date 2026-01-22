@@ -224,26 +224,22 @@ Duration format: `30m` (minutes), `4h` (hours), `7d` (days)
 
 ### CrowdSec Variables
 
-| Variable                            | Default                              | Description                       |
-| ----------------------------------- | ------------------------------------ | --------------------------------- |
-| `crowdsec_enabled`                  | `true`                               | Master switch                     |
-| `crowdsec_disable_legacy`           | `true`                               | Stop fail2ban/ferm                |
-| `crowdsec_flush_legacy_rules`       | `false`                              | Flush iptables (use with caution) |
-| `crowdsec_collections`              | See defaults                         | Hub collections to install        |
-| `crowdsec_parsers`                  | `[]`                                 | Additional parsers                |
-| `crowdsec_scenarios`                | `[]`                                 | Additional scenarios              |
-| `crowdsec_scenarios_remove`         | `[]`                                 | Scenarios to remove               |
-| `crowdsec_http_probing_exclude_404` | `false`                              | Exclude 404s from http-probing    |
-| `crowdsec_ban_duration_default`     | `4h`                                 | Default ban for Hub scenarios     |
-| `crowdsec_acquisition`              | Trellis paths                        | Log file acquisition              |
-| `crowdsec_firewall_bouncer_enabled` | `true`                               | Install firewall bouncer          |
-| `crowdsec_firewall_bouncer_package` | `crowdsec-firewall-bouncer-nftables` | Bouncer package                   |
-| `crowdsec_whitelists`               | `{{ ip_whitelist }}`                 | Derived from ip_whitelist         |
-| `crowdsec_import_blocked_ips`       | `true`                               | Import blocked IPs as decisions   |
-| `crowdsec_blocked_ips`              | `{{ blocked_ips }}`                  | Derived from blocked_ips          |
-| `crowdsec_blocked_ips_duration`     | `87600h`                             | Block duration (10 years)         |
-| `crowdsec_console_token`            | `""`                                 | Console enrollment token          |
-| `crowdsec_custom_scenarios`         | `[]`                                 | Custom scenario definitions       |
+| Variable                            | Default       | Description                       |
+| ----------------------------------- | ------------- | --------------------------------- |
+| `crowdsec_enabled`                  | `true`        | Master switch                     |
+| `crowdsec_disable_legacy`           | `true`        | Stop fail2ban/ferm                |
+| `crowdsec_flush_legacy_rules`       | `false`       | Flush iptables (use with caution) |
+| `crowdsec_collections`              | See defaults  | Hub collections to install        |
+| `crowdsec_parsers`                  | `[]`          | Additional parsers                |
+| `crowdsec_scenarios`                | `[]`          | Additional scenarios              |
+| `crowdsec_scenarios_remove`         | `[]`          | Scenarios to remove               |
+| `crowdsec_http_probing_exclude_404` | `false`       | Exclude 404s from http-probing    |
+| `crowdsec_ban_duration_default`     | `4h`          | Default ban for Hub scenarios     |
+| `crowdsec_acquisition`              | Trellis paths | Log file acquisition              |
+| `crowdsec_firewall_bouncer_enabled` | `true`        | Install firewall bouncer          |
+| `crowdsec_blocked_ips_duration`     | `87600h`      | Block duration (10 years)         |
+| `crowdsec_console_token`            | `""`          | Console enrollment token          |
+| `crowdsec_custom_scenarios`         | `[]`          | Custom scenario definitions       |
 
 ## Useful Commands
 

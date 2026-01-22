@@ -20,11 +20,7 @@ crowdsec_flush_legacy_rules: false
 # Package Installation
 # =============================================================================
 
-crowdsec_packages:
-  - crowdsec
-
-crowdsec_service_enabled: true
-crowdsec_service_state: started
+# No configuration needed - CrowdSec package is installed automatically
 
 # =============================================================================
 # CrowdSec Hub - Collections, Parsers, Scenarios
@@ -182,40 +178,25 @@ crowdsec_acquisition:
 # =============================================================================
 
 crowdsec_firewall_bouncer_enabled: true
-crowdsec_firewall_bouncer_package: crowdsec-firewall-bouncer-nftables
-crowdsec_firewall_bouncer_mode: nftables
-
-crowdsec_firewall_bouncer_service_enabled: true
-crowdsec_firewall_bouncer_service_state: started
 
 # =============================================================================
 # IP Whitelists
 # =============================================================================
 
-# Trellis ip_whitelist - define here or override in group_vars
-# Used by CrowdSec whitelist and can be reused by other roles
+# IPs that should never be blocked by CrowdSec
+# Override in group_vars to add monitoring services, office IPs, etc.
 ip_whitelist:
   - 127.0.0.0/8
-
-# IPs that should never be blocked by CrowdSec
-# Automatically derives from ip_whitelist, filtering empty values
-crowdsec_whitelists: "{{ ip_whitelist | default([]) | select('string') | reject('==', '') | list }}"
 
 # =============================================================================
 # Blocked IPs Import
 # =============================================================================
 
-# Trellis blocked_ips - define here or override in group_vars
-# IPs to permanently block
+# IPs/CIDRs to permanently block - imported as CrowdSec decisions
+# Override in group_vars to block known bad actors
 blocked_ips: []
 
-# Import blocked_ips as CrowdSec decisions
-crowdsec_import_blocked_ips: true
-
-# IPs/CIDRs to block - derives from blocked_ips by default
-crowdsec_blocked_ips: "{{ blocked_ips | default([]) }}"
-
-# Duration for imported blocked IPs (10 years)
+# Duration for imported blocked IPs (default: 10 years)
 crowdsec_blocked_ips_duration: "87600h"
 
 # =============================================================================
