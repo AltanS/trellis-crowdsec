@@ -300,7 +300,11 @@
     mode: '0755'
   when:
     - crowdsec_enabled | bool
-    - (crowdsec_custom_scenarios | length > 0) or (crowdsec_http_probing_exclude_404 | bool)
+    - (crowdsec_custom_scenarios | length > 0) or
+      (crowdsec_http_probing_exclude_404 | bool) or
+      (crowdsec_scenario_actuator_probe | bool) or
+      (crowdsec_scenario_debug_fuzzing | bool) or
+      (crowdsec_scenario_bad_user_agent | bool)
 
 - name: Deploy http-probing override (exclude 404)
   ansible.builtin.template:
@@ -335,3 +339,69 @@
   when:
     - crowdsec_enabled | bool
     - crowdsec_custom_scenarios | length > 0
+
+# =============================================================================
+# Built-in Scenarios
+# =============================================================================
+- name: Deploy actuator-probe scenario
+  ansible.builtin.template:
+    src: scenarios/actuator-probe.yaml.j2
+    dest: /etc/crowdsec/scenarios/actuator-probe.yaml
+    owner: root
+    group: root
+    mode: '0644'
+  notify: Reload crowdsec
+  when:
+    - crowdsec_enabled | bool
+    - crowdsec_scenario_actuator_probe | bool
+
+- name: Remove actuator-probe scenario when disabled
+  ansible.builtin.file:
+    path: /etc/crowdsec/scenarios/actuator-probe.yaml
+    state: absent
+  notify: Reload crowdsec
+  when:
+    - crowdsec_enabled | bool
+    - not (crowdsec_scenario_actuator_probe | bool)
+
+- name: Deploy debug-fuzzing scenario
+  ansible.builtin.template:
+    src: scenarios/debug-fuzzing.yaml.j2
+    dest: /etc/crowdsec/scenarios/debug-fuzzing.yaml
+    owner: root
+    group: root
+    mode: '0644'
+  notify: Reload crowdsec
+  when:
+    - crowdsec_enabled | bool
+    - crowdsec_scenario_debug_fuzzing | bool
+
+- name: Remove debug-fuzzing scenario when disabled
+  ansible.builtin.file:
+    path: /etc/crowdsec/scenarios/debug-fuzzing.yaml
+    state: absent
+  notify: Reload crowdsec
+  when:
+    - crowdsec_enabled | bool
+    - not (crowdsec_scenario_debug_fuzzing | bool)
+
+- name: Deploy bad-user-agent scenario
+  ansible.builtin.template:
+    src: scenarios/bad-user-agent.yaml.j2
+    dest: /etc/crowdsec/scenarios/bad-user-agent.yaml
+    owner: root
+    group: root
+    mode: '0644'
+  notify: Reload crowdsec
+  when:
+    - crowdsec_enabled | bool
+    - crowdsec_scenario_bad_user_agent | bool
+
+- name: Remove bad-user-agent scenario when disabled
+  ansible.builtin.file:
+    path: /etc/crowdsec/scenarios/bad-user-agent.yaml
+    state: absent
+  notify: Reload crowdsec
+  when:
+    - crowdsec_enabled | bool
+    - not (crowdsec_scenario_bad_user_agent | bool)

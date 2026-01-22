@@ -12,6 +12,7 @@ Replaces fail2ban and ferm with a modern, community-driven intrusion detection a
 - IP whitelists (integrates with Trellis `ip_whitelist`)
 - Import existing blocked IPs as CrowdSec decisions
 - WordPress-specific attack detection via Hub collections
+- Built-in scenarios for common attack patterns (enabled by default)
 - Custom scenario support
 
 ## Requirements
@@ -54,6 +55,7 @@ roles:
 
 Out of the box, you get:
 - WordPress, nginx, and SSH protection via CrowdSec Hub collections
+- Built-in scenarios for actuator probes, debug fuzzing, and scanner user agents
 - Trellis log paths (`/srv/www/*/logs/*.log`)
 - nftables firewall bouncer
 - Localhost whitelisted (`127.0.0.0/8`)
@@ -125,6 +127,25 @@ crowdsec_scenarios_remove:
   - crowdsecurity/http-probing
 ```
 
+### Built-in Scenarios
+
+This role includes three built-in scenarios that are **enabled by default** to protect against common attack patterns:
+
+| Scenario | Description |
+| -------- | ----------- |
+| `actuator-probe` | Detects Spring Boot actuator endpoint probing (`/actuator`, `/heapdump`). Triggers after 3 requests within 1 minute. |
+| `debug-fuzzing` | Detects debug/error endpoint probing (`/debug`, `?error=`, `?stacktrace=`, `?exception=`). Triggers after 5 requests within 30 seconds. |
+| `bad-user-agent` | Immediately blocks requests from known scanner user agents (ffuf, sqlmap, nikto, nuclei, gobuster, dirbuster, wpscan). |
+
+To disable any of these scenarios:
+
+```yaml
+# Disable specific built-in scenarios
+crowdsec_scenario_actuator_probe: false
+crowdsec_scenario_debug_fuzzing: false
+crowdsec_scenario_bad_user_agent: false
+```
+
 ## Variables Reference
 
 ### Trellis Integration Variables
@@ -146,6 +167,9 @@ crowdsec_scenarios_remove:
 | `crowdsec_scenarios`                | `[]`                                 | Additional scenarios              |
 | `crowdsec_scenarios_remove`         | `[]`                                 | Scenarios to remove               |
 | `crowdsec_http_probing_exclude_404` | `false`                              | Exclude 404s from http-probing    |
+| `crowdsec_scenario_actuator_probe`  | `true`                               | Enable actuator probe detection   |
+| `crowdsec_scenario_debug_fuzzing`   | `true`                               | Enable debug fuzzing detection    |
+| `crowdsec_scenario_bad_user_agent`  | `true`                               | Enable bad user agent blocking    |
 | `crowdsec_acquisition`              | Trellis paths                        | Log file acquisition              |
 | `crowdsec_firewall_bouncer_enabled` | `true`                               | Install firewall bouncer          |
 | `crowdsec_firewall_bouncer_package` | `crowdsec-firewall-bouncer-nftables` | Bouncer package                   |

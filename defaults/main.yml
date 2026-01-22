@@ -59,6 +59,11 @@ crowdsec_scenarios_remove: []
 # Set to true to deploy a modified version that only triggers on 403/400.
 crowdsec_http_probing_exclude_404: false
 
+# Built-in scenario toggles (enabled by default, set to false to disable)
+crowdsec_scenario_actuator_probe: true     # Detect Spring Boot actuator endpoint probing
+crowdsec_scenario_debug_fuzzing: true      # Detect debug/error endpoint probing
+crowdsec_scenario_bad_user_agent: true     # Block known scanner user agents
+
 # =============================================================================
 # Console Enrollment (optional - for CrowdSec Console dashboard)
 # =============================================================================

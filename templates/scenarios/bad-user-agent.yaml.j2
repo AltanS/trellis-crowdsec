@@ -1,0 +1,20 @@
+# CrowdSec Scenario: Bad User Agent Detection
+# Managed by Ansible - do not edit manually
+
+type: trigger
+name: custom/bad-user-agent
+description: "Block known scanner user agents"
+filter: |
+  evt.Meta.http_user_agent contains 'Fuzz Faster' or
+  evt.Meta.http_user_agent contains 'sqlmap' or
+  evt.Meta.http_user_agent contains 'nikto' or
+  evt.Meta.http_user_agent contains 'nuclei' or
+  evt.Meta.http_user_agent contains 'gobuster' or
+  evt.Meta.http_user_agent contains 'dirbuster' or
+  evt.Meta.http_user_agent contains 'wpscan' or
+  evt.Meta.http_user_agent startsWith 'Moz111a'
+groupby: evt.Meta.source_ip
+labels:
+  service: http
+  type: scan
+  remediation: true
