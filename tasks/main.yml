@@ -169,6 +169,19 @@
   when: crowdsec_enabled | bool
 
 # =============================================================================
+# Profiles (Ban Durations)
+# =============================================================================
+- name: Configure CrowdSec profiles (ban durations)
+  ansible.builtin.template:
+    src: profiles.yaml.j2
+    dest: /etc/crowdsec/profiles.yaml
+    owner: root
+    group: root
+    mode: '0644'
+  notify: Reload crowdsec
+  when: crowdsec_enabled | bool
+
+# =============================================================================
 # Firewall Bouncer
 # =============================================================================
 - name: Install CrowdSec Firewall Bouncer
@@ -304,7 +317,8 @@
       (crowdsec_http_probing_exclude_404 | bool) or
       (crowdsec_scenario_actuator_probe | bool) or
       (crowdsec_scenario_debug_fuzzing | bool) or
-      (crowdsec_scenario_bad_user_agent | bool)
+      (crowdsec_scenario_custom_bad_user_agent | bool) or
+      (crowdsec_scenario_ssrf_callback | bool)
 
 - name: Deploy http-probing override (exclude 404)
   ansible.builtin.template:
@@ -385,23 +399,52 @@
     - crowdsec_enabled | bool
     - not (crowdsec_scenario_debug_fuzzing | bool)
 
-- name: Deploy bad-user-agent scenario
+- name: Deploy custom-bad-user-agent scenario
   ansible.builtin.template:
-    src: scenarios/bad-user-agent.yaml.j2
-    dest: /etc/crowdsec/scenarios/bad-user-agent.yaml
+    src: scenarios/custom-bad-user-agent.yaml.j2
+    dest: /etc/crowdsec/scenarios/custom-bad-user-agent.yaml
     owner: root
     group: root
     mode: '0644'
   notify: Reload crowdsec
   when:
     - crowdsec_enabled | bool
-    - crowdsec_scenario_bad_user_agent | bool
+    - crowdsec_scenario_custom_bad_user_agent | bool
 
-- name: Remove bad-user-agent scenario when disabled
+- name: Remove custom-bad-user-agent scenario when disabled
+  ansible.builtin.file:
+    path: /etc/crowdsec/scenarios/custom-bad-user-agent.yaml
+    state: absent
+  notify: Reload crowdsec
+  when:
+    - crowdsec_enabled | bool
+    - not (crowdsec_scenario_custom_bad_user_agent | bool)
+
+- name: Remove legacy bad-user-agent scenario
   ansible.builtin.file:
     path: /etc/crowdsec/scenarios/bad-user-agent.yaml
     state: absent
   notify: Reload crowdsec
   when:
     - crowdsec_enabled | bool
-    - not (crowdsec_scenario_bad_user_agent | bool)
+
+- name: Deploy ssrf-callback scenario
+  ansible.builtin.template:
+    src: scenarios/ssrf-callback.yaml.j2
+    dest: /etc/crowdsec/scenarios/ssrf-callback.yaml
+    owner: root
+    group: root
+    mode: '0644'
+  notify: Reload crowdsec
+  when:
+    - crowdsec_enabled | bool
+    - crowdsec_scenario_ssrf_callback | bool
+
+- name: Remove ssrf-callback scenario when disabled
+  ansible.builtin.file:
+    path: /etc/crowdsec/scenarios/ssrf-callback.yaml
+    state: absent
+  notify: Reload crowdsec
+  when:
+    - crowdsec_enabled | bool
+    - not (crowdsec_scenario_ssrf_callback | bool)

@@ -10,9 +10,9 @@ filter: |
   evt.Meta.http_args contains 'stacktrace=' or
   evt.Meta.http_args contains 'exception='
 groupby: evt.Meta.source_ip
-capacity: 5
-leakspeed: 30s
-blackhole: 10m
+capacity: {{ crowdsec_scenario_debug_fuzzing_capacity }}
+leakspeed: {{ crowdsec_scenario_debug_fuzzing_leakspeed }}
+blackhole: {{ crowdsec_scenario_debug_fuzzing_blackhole }}
 labels:
   service: http
   type: scan

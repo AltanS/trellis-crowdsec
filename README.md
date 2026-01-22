@@ -55,7 +55,7 @@ roles:
 
 Out of the box, you get:
 - WordPress, nginx, and SSH protection via CrowdSec Hub collections
-- Built-in scenarios for actuator probes, debug fuzzing, and scanner user agents
+- Built-in scenarios for actuator probes, debug fuzzing, scanner user agents, and SSRF callbacks
 - Trellis log paths (`/srv/www/*/logs/*.log`)
 - nftables firewall bouncer
 - Localhost whitelisted (`127.0.0.0/8`)
@@ -129,22 +129,89 @@ crowdsec_scenarios_remove:
 
 ### Built-in Scenarios
 
-This role includes three built-in scenarios that are **enabled by default** to protect against common attack patterns:
+This role includes four built-in scenarios that are **enabled by default** to protect against common attack patterns. All parameters are configurable.
 
-| Scenario | Description |
-| -------- | ----------- |
-| `actuator-probe` | Detects Spring Boot actuator endpoint probing (`/actuator`, `/heapdump`). Triggers after 3 requests within 1 minute. |
-| `debug-fuzzing` | Detects debug/error endpoint probing (`/debug`, `?error=`, `?stacktrace=`, `?exception=`). Triggers after 5 requests within 30 seconds. |
-| `bad-user-agent` | Immediately blocks requests from known scanner user agents (ffuf, sqlmap, nikto, nuclei, gobuster, dirbuster, wpscan). |
+#### Scenario Parameters Explained
 
-To disable any of these scenarios:
+| Parameter | Description |
+| --------- | ----------- |
+| `capacity` | Number of events allowed before triggering (bucket size). Lower = more sensitive. |
+| `leakspeed` | How fast the bucket drains. `1m` = 1 event drains per minute. Faster = more tolerant. |
+| `blackhole` | Cooldown after triggering before the scenario can fire again for the same IP. |
+| `ban` | How long the IP is banned when the scenario triggers. |
+
+#### Actuator Probe Detection
+
+Detects probing for Spring Boot actuator endpoints (`/actuator`, `/heapdump`) which expose sensitive application data.
+
+| Variable | Default | Description |
+| -------- | ------- | ----------- |
+| `crowdsec_scenario_actuator_probe` | `true` | Enable/disable scenario |
+| `crowdsec_scenario_actuator_probe_capacity` | `3` | Requests before triggering |
+| `crowdsec_scenario_actuator_probe_leakspeed` | `1m` | Drain rate |
+| `crowdsec_scenario_actuator_probe_blackhole` | `5m` | Cooldown between alerts |
+| `crowdsec_scenario_actuator_probe_ban` | `24h` | Ban duration |
+
+#### Debug Endpoint Fuzzing
+
+Detects probing for debug endpoints and error parameters (`/debug`, `?error=`, `?stacktrace=`, `?exception=`).
+
+| Variable | Default | Description |
+| -------- | ------- | ----------- |
+| `crowdsec_scenario_debug_fuzzing` | `true` | Enable/disable scenario |
+| `crowdsec_scenario_debug_fuzzing_capacity` | `5` | Requests before triggering |
+| `crowdsec_scenario_debug_fuzzing_leakspeed` | `30s` | Drain rate |
+| `crowdsec_scenario_debug_fuzzing_blackhole` | `10m` | Cooldown between alerts |
+| `crowdsec_scenario_debug_fuzzing_ban` | `12h` | Ban duration |
+
+#### Custom Bad User Agent Detection
+
+Supplements the Hub's `http-bad-user-agent` scenario (500+ auto-updated patterns) with **immediate blocking** for the most egregious scanner user agents. The Hub scenario triggers after 2 requests; this triggers immediately on first match.
+
+Detected agents: ffuf, sqlmap, nikto, nuclei, gobuster, dirbuster, wpscan, Team Anon Force, Mozlila, Moz111a
+
+| Variable | Default | Description |
+| -------- | ------- | ----------- |
+| `crowdsec_scenario_custom_bad_user_agent` | `true` | Enable/disable scenario |
+| `crowdsec_scenario_custom_bad_user_agent_ban` | `168h` | Ban duration (7 days) |
+
+#### SSRF Callback Detection
+
+Detects Server-Side Request Forgery (SSRF) attempts using callback domains to exfiltrate data or confirm vulnerabilities. These domains are used by security testing tools for out-of-band detection.
+
+Detected domains: burpcollaborator.net, oastify.com, interact.sh, canarytokens.com, requestbin.net, webhook.site, *.oast.*
+
+| Variable | Default | Description |
+| -------- | ------- | ----------- |
+| `crowdsec_scenario_ssrf_callback` | `true` | Enable/disable scenario |
+| `crowdsec_scenario_ssrf_callback_ban` | `168h` | Ban duration (7 days) |
+
+#### Disabling Scenarios
 
 ```yaml
 # Disable specific built-in scenarios
 crowdsec_scenario_actuator_probe: false
 crowdsec_scenario_debug_fuzzing: false
-crowdsec_scenario_bad_user_agent: false
+crowdsec_scenario_custom_bad_user_agent: false
+crowdsec_scenario_ssrf_callback: false
 ```
+
+### Ban Durations
+
+Ban durations are configured via CrowdSec profiles. This role deploys a custom `profiles.yaml` with sensible defaults.
+
+```yaml
+# Default ban duration for CrowdSec Hub scenarios (ssh-bf, http-probing, etc.)
+crowdsec_ban_duration_default: "4h"
+
+# Override built-in scenario ban durations
+crowdsec_scenario_actuator_probe_ban: "24h"
+crowdsec_scenario_debug_fuzzing_ban: "12h"
+crowdsec_scenario_custom_bad_user_agent_ban: "168h"  # 7 days
+crowdsec_scenario_ssrf_callback_ban: "168h"          # 7 days
+```
+
+Duration format: `30m` (minutes), `4h` (hours), `7d` (days)
 
 ## Variables Reference
 
@@ -167,9 +234,7 @@ crowdsec_scenario_bad_user_agent: false
 | `crowdsec_scenarios`                | `[]`                                 | Additional scenarios              |
 | `crowdsec_scenarios_remove`         | `[]`                                 | Scenarios to remove               |
 | `crowdsec_http_probing_exclude_404` | `false`                              | Exclude 404s from http-probing    |
-| `crowdsec_scenario_actuator_probe`  | `true`                               | Enable actuator probe detection   |
-| `crowdsec_scenario_debug_fuzzing`   | `true`                               | Enable debug fuzzing detection    |
-| `crowdsec_scenario_bad_user_agent`  | `true`                               | Enable bad user agent blocking    |
+| `crowdsec_ban_duration_default`     | `4h`                                 | Default ban for Hub scenarios     |
 | `crowdsec_acquisition`              | Trellis paths                        | Log file acquisition              |
 | `crowdsec_firewall_bouncer_enabled` | `true`                               | Install firewall bouncer          |
 | `crowdsec_firewall_bouncer_package` | `crowdsec-firewall-bouncer-nftables` | Bouncer package                   |

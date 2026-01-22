@@ -1,0 +1,68 @@
+# CrowdSec Profiles Configuration
+# Managed by Ansible - do not edit manually
+#
+# Profiles determine what action to take when a scenario triggers.
+# They are evaluated in order; first match wins (on_success: break).
+
+{% if crowdsec_scenario_actuator_probe | bool %}
+# -----------------------------------------------------------------------------
+# Actuator Probe - Spring Boot endpoint scanning
+# -----------------------------------------------------------------------------
+name: actuator_probe
+filters:
+  - Alert.Remediation == true && Alert.GetScenario() == "custom/actuator-probe"
+decisions:
+  - type: ban
+    duration: {{ crowdsec_scenario_actuator_probe_ban }}
+on_success: break
+---
+{% endif %}
+{% if crowdsec_scenario_debug_fuzzing | bool %}
+# -----------------------------------------------------------------------------
+# Debug Fuzzing - Debug/error endpoint probing
+# -----------------------------------------------------------------------------
+name: debug_fuzzing
+filters:
+  - Alert.Remediation == true && Alert.GetScenario() == "custom/debug-fuzzing"
+decisions:
+  - type: ban
+    duration: {{ crowdsec_scenario_debug_fuzzing_ban }}
+on_success: break
+---
+{% endif %}
+{% if crowdsec_scenario_custom_bad_user_agent | bool %}
+# -----------------------------------------------------------------------------
+# Custom Bad User Agent - Known scanner tools (immediate, longer ban)
+# -----------------------------------------------------------------------------
+name: custom_bad_user_agent
+filters:
+  - Alert.Remediation == true && Alert.GetScenario() == "custom/custom-bad-user-agent"
+decisions:
+  - type: ban
+    duration: {{ crowdsec_scenario_custom_bad_user_agent_ban }}
+on_success: break
+---
+{% endif %}
+{% if crowdsec_scenario_ssrf_callback | bool %}
+# -----------------------------------------------------------------------------
+# SSRF Callback - Exploitation attempt with callback domains
+# -----------------------------------------------------------------------------
+name: ssrf_callback
+filters:
+  - Alert.Remediation == true && Alert.GetScenario() == "custom/ssrf-callback"
+decisions:
+  - type: ban
+    duration: {{ crowdsec_scenario_ssrf_callback_ban }}
+on_success: break
+---
+{% endif %}
+# -----------------------------------------------------------------------------
+# Default - All other scenarios (CrowdSec Hub scenarios)
+# -----------------------------------------------------------------------------
+name: default_ip_remediation
+filters:
+  - Alert.Remediation == true && Alert.GetScope() == "Ip"
+decisions:
+  - type: ban
+    duration: {{ crowdsec_ban_duration_default }}
+on_success: break

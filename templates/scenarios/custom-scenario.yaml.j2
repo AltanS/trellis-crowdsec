@@ -6,7 +6,7 @@ name: custom/{{ item.name }}
 description: "{{ item.description }}"
 filter: {{ item.filter }}
 groupby: {{ item.groupby | default('evt.Meta.source_ip') }}
-{% if item.type | default('leaky') == 'leaky' %}
+{% if item.type | default('leaky') != 'trigger' %}
 capacity: {{ item.capacity }}
 leakspeed: {{ item.leakspeed }}
 blackhole: {{ item.blackhole }}

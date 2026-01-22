@@ -59,10 +59,92 @@ crowdsec_scenarios_remove: []
 # Set to true to deploy a modified version that only triggers on 403/400.
 crowdsec_http_probing_exclude_404: false
 
-# Built-in scenario toggles (enabled by default, set to false to disable)
-crowdsec_scenario_actuator_probe: true     # Detect Spring Boot actuator endpoint probing
-crowdsec_scenario_debug_fuzzing: true      # Detect debug/error endpoint probing
-crowdsec_scenario_bad_user_agent: true     # Block known scanner user agents
+# =============================================================================
+# Ban Durations (Profiles)
+# =============================================================================
+# CrowdSec uses "profiles" to determine what action to take when a scenario
+# triggers. This role deploys a custom profiles.yaml with sensible defaults.
+#
+# Ban duration format: "4h" (hours), "30m" (minutes), "7d" (days)
+
+# Default ban duration for CrowdSec Hub scenarios (ssh-bf, http-probing, etc.)
+crowdsec_ban_duration_default: "4h"
+
+# =============================================================================
+# Built-in Scenarios
+# =============================================================================
+# These scenarios are included with this role and enabled by default.
+# Each scenario has tunable parameters explained below.
+#
+# SCENARIO PARAMETERS:
+# --------------------
+# capacity    - Number of events allowed before triggering (bucket size)
+#               Lower = more sensitive, Higher = more tolerant
+#
+# leakspeed   - How fast the bucket drains (one event leaks per interval)
+#               "1m" = 1 event drains per minute, "30s" = 1 per 30 seconds
+#               Faster leak = more tolerant of slow attacks
+#
+# blackhole   - Cooldown after triggering before scenario can fire again
+#               Prevents alert spam for persistent attackers
+#
+# ban_duration - How long the IP is banned when this scenario triggers
+#
+# TYPE: "leaky" vs "trigger"
+# --------------------------
+# leaky   - Bucket-based rate limiting (uses capacity/leakspeed/blackhole)
+# trigger - Immediate action on first match (no rate limiting)
+
+# -----------------------------------------------------------------------------
+# Actuator Probe Detection
+# -----------------------------------------------------------------------------
+# Detects probing for Spring Boot actuator endpoints (/actuator, /heapdump)
+# which expose sensitive application data. Common in automated scanners.
+crowdsec_scenario_actuator_probe: true
+crowdsec_scenario_actuator_probe_capacity: 3      # Trigger after 3 requests
+crowdsec_scenario_actuator_probe_leakspeed: "1m"  # Drain 1 request per minute
+crowdsec_scenario_actuator_probe_blackhole: "5m"  # 5 min cooldown between alerts
+crowdsec_scenario_actuator_probe_ban: "24h"       # Ban for 24 hours
+
+# -----------------------------------------------------------------------------
+# Debug Endpoint Fuzzing
+# -----------------------------------------------------------------------------
+# Detects probing for debug endpoints and error parameters that could
+# leak stack traces, configuration, or other sensitive information.
+# Paths: /debug, ?error=, ?stacktrace=, ?exception=
+crowdsec_scenario_debug_fuzzing: true
+crowdsec_scenario_debug_fuzzing_capacity: 5       # Trigger after 5 requests
+crowdsec_scenario_debug_fuzzing_leakspeed: "30s"  # Drain 1 request per 30 seconds
+crowdsec_scenario_debug_fuzzing_blackhole: "10m"  # 10 min cooldown between alerts
+crowdsec_scenario_debug_fuzzing_ban: "12h"        # Ban for 12 hours
+
+# -----------------------------------------------------------------------------
+# Custom Bad User Agent Detection
+# -----------------------------------------------------------------------------
+# Supplements the Hub's http-bad-user-agent scenario (500+ patterns) with
+# immediate blocking for the most egregious scanner user agents.
+#
+# Hub scenario triggers after 2 requests; this triggers immediately.
+# Detected agents: ffuf, sqlmap, nikto, nuclei, gobuster, dirbuster, wpscan,
+#                  Team Anon Force, Mozlila, Moz111a
+#
+# TYPE: trigger (immediate ban on first match - no capacity/leakspeed)
+crowdsec_scenario_custom_bad_user_agent: true
+crowdsec_scenario_custom_bad_user_agent_ban: "168h"  # Ban for 7 days (serious intent)
+
+# -----------------------------------------------------------------------------
+# SSRF Callback Detection
+# -----------------------------------------------------------------------------
+# Detects Server-Side Request Forgery (SSRF) attempts using callback domains
+# to exfiltrate data or confirm vulnerabilities. These domains are used by
+# security testing tools (Burp, nuclei, etc.) for out-of-band detection.
+#
+# Detected domains: burpcollaborator.net, oastify.com, interact.sh,
+#                   canarytokens.com, requestbin.net, webhook.site, *.oast.*
+#
+# TYPE: trigger (immediate ban on first match - no capacity/leakspeed)
+crowdsec_scenario_ssrf_callback: true
+crowdsec_scenario_ssrf_callback_ban: "168h"       # Ban for 7 days (active exploitation)
 
 # =============================================================================
 # Console Enrollment (optional - for CrowdSec Console dashboard)
