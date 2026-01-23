@@ -186,6 +186,72 @@ crowdsec_console_token: "your-enrollment-token"
 crowdsec_enabled: false
 ```
 
+### Community Collections
+
+CrowdSec Hub provides community-maintained collections that bundle parsers and scenarios for specific applications. This role installs a curated set by default.
+
+**Default collections:**
+
+| Collection | Description |
+|------------|-------------|
+| `crowdsecurity/linux` | Linux system log parsing |
+| `crowdsecurity/nginx` | Nginx access/error log parsing |
+| `crowdsecurity/sshd` | SSH brute-force detection |
+| `crowdsecurity/base-http-scenarios` | HTTP probing, crawling, bad user-agents |
+| `crowdsecurity/http-cve` | Known CVE exploitation attempts |
+| `crowdsecurity/wordpress` | WordPress-specific attacks (xmlrpc, wp-login brute-force) |
+| `crowdsecurity/whitelist-good-actors` | Whitelist Googlebot, Bingbot, etc. |
+
+**Adding community collections:**
+
+Browse available collections at [CrowdSec Hub](https://hub.crowdsec.net/browse/#collections). To add collections, override `crowdsec_collections` in `group_vars/all/security.yml`:
+
+```yaml
+# Add to your existing defaults
+crowdsec_collections:
+  # Default collections (keep these)
+  - crowdsecurity/linux
+  - crowdsecurity/nginx
+  - crowdsecurity/sshd
+  - crowdsecurity/base-http-scenarios
+  - crowdsecurity/http-cve
+  - crowdsecurity/wordpress
+  - crowdsecurity/whitelist-good-actors
+  # Additional collections
+  - crowdsecurity/postfix        # Mail server protection
+  - crowdsecurity/mysql          # MySQL/MariaDB protection
+  - crowdsecurity/iptables       # If using iptables logs
+```
+
+**Removing collections:**
+
+To remove a default collection, override the list without it:
+
+```yaml
+crowdsec_collections:
+  - crowdsecurity/linux
+  - crowdsecurity/nginx
+  - crowdsecurity/sshd
+  - crowdsecurity/base-http-scenarios
+  - crowdsecurity/http-cve
+  # Removed: crowdsecurity/wordpress (not using WordPress)
+  - crowdsecurity/whitelist-good-actors
+```
+
+**Adding individual scenarios or parsers:**
+
+If you only need specific scenarios/parsers (not full collections):
+
+```yaml
+# Add individual scenarios
+crowdsec_scenarios:
+  - crowdsecurity/http-sqli      # SQL injection detection
+
+# Add individual parsers
+crowdsec_parsers:
+  - crowdsecurity/geoip-enrich   # Add geolocation to alerts
+```
+
 ### CrowdSec Console
 
 Enroll in [CrowdSec Console](https://app.crowdsec.net/) for a centralized dashboard to monitor all your servers.
