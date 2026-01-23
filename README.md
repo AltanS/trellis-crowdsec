@@ -1,19 +1,21 @@
 # Trellis CrowdSec
 
+> **⚠️ Warning:** This role modifies firewall rules and security services. Misconfiguration can lock you out of your server. Ensure you have out-of-band access (console, KVM, recovery mode) before deploying. Test on staging first. The author assumes no responsibility for lost access, downtime, or any damages resulting from use of this role.
+
 Ansible role to install and configure [CrowdSec](https://crowdsec.net/) Security Engine for [Trellis](https://roots.io/trellis/) WordPress deployments.
 
 Replaces fail2ban and ferm with a modern, community-driven intrusion detection and prevention system.
 
-## Features
+## Why CrowdSec over fail2ban + ferm?
 
-- Installs CrowdSec Security Engine and nftables Firewall Bouncer
-- Trellis-aware log acquisition (per-site nginx logs)
-- Automatic migration from fail2ban/ferm
-- IP whitelists (integrates with Trellis `ip_whitelist`)
-- Import existing blocked IPs as CrowdSec decisions
-- WordPress-specific attack detection via Hub collections
-- Built-in scenarios for common attack patterns (enabled by default)
-- Custom scenario support
+| | fail2ban + ferm | CrowdSec |
+|---|---|---|
+| **Threat intelligence** | Local only - learns from attacks on your server | Community blocklists - benefit from attacks seen across 200k+ servers |
+| **Detection** | Regex-based jail configs | Behavioral analysis with parsers and scenarios |
+| **Firewall** | iptables (legacy) | nftables (modern, faster, better syntax) |
+| **False positives** | Common with aggressive configs | Reputation-aware, whitelists good actors (Googlebot, etc.) |
+| **Updates** | Manual filter maintenance | Auto-updated Hub with community scenarios |
+| **Dashboard** | CLI only | Free web console for multi-server monitoring |
 
 ## Requirements
 
@@ -22,6 +24,8 @@ Replaces fail2ban and ferm with a modern, community-driven intrusion detection a
 - Trellis-based WordPress deployment (or compatible nginx setup)
 
 ## Installation
+
+### 1. Add to galaxy.yml
 
 ```yaml
 # galaxy.yml
@@ -37,7 +41,7 @@ Then install:
 ansible-galaxy install -r galaxy.yml
 ```
 
-### Add to server.yml
+### 2. Update server.yml
 
 ```yaml
 # server.yml
@@ -48,6 +52,105 @@ roles:
   # - { role: fail2ban, tags: [fail2ban] }
   # - { role: ferm, tags: [ferm] }
 ```
+
+### What the role does during provisioning
+
+When you run provisioning, this role automatically handles the migration:
+
+1. **Stops and disables fail2ban** - If `/etc/fail2ban` exists, the fail2ban service is stopped and disabled. The package is not removed.
+
+2. **Stops and disables ferm** - If `/etc/ferm` exists, the ferm service is stopped and disabled. The package is not removed.
+
+3. **Installs CrowdSec** - Adds the official CrowdSec repository and installs the Security Engine.
+
+4. **Installs nftables firewall bouncer** - Registers with the CrowdSec LAPI to enforce blocking decisions.
+
+5. **Configures log acquisition** - Points CrowdSec at Trellis log paths (`/srv/www/*/logs/*.log`).
+
+6. **Installs Hub collections** - WordPress, nginx, SSH, and HTTP security scenarios.
+
+**Note:** iptables rules from ferm remain active until you explicitly flush them (see below).
+
+### 3. Run provisioning
+
+```bash
+ansible-playbook server.yml -e env=production --tags=crowdsec
+```
+
+### 4. Verify CrowdSec is working
+
+```bash
+# SSH into server
+sudo cscli metrics                    # Should show log processing
+sudo cscli decisions list             # Active bans
+sudo cscli bouncers list              # Should show firewall-bouncer
+```
+
+### 5. Flush legacy iptables rules (optional)
+
+After confirming CrowdSec is working, you can flush the old iptables rules from ferm:
+
+```yaml
+# group_vars/all/security.yml
+crowdsec_flush_legacy_rules: true
+```
+
+Then re-provision. This runs `iptables -F` to clear legacy rules. Only do this after confirming CrowdSec's nftables bouncer is active.
+
+### Migration variables
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `crowdsec_disable_legacy` | `true` | Stop and disable fail2ban/ferm services |
+| `crowdsec_flush_legacy_rules` | `false` | Flush iptables rules (run `iptables -F`) |
+
+## Uninstall / Reverting to fail2ban
+
+To remove CrowdSec and restore fail2ban/ferm:
+
+### 1. Update server.yml
+
+```yaml
+roles:
+  - { role: common, tags: [common] }
+  # - { role: trellis-crowdsec, tags: [crowdsec, security] }
+  - { role: fail2ban, tags: [fail2ban] }
+  - { role: ferm, tags: [ferm] }
+```
+
+### 2. Remove CrowdSec from the server
+
+```bash
+# SSH into your server
+sudo systemctl stop crowdsec crowdsec-firewall-bouncer
+sudo systemctl disable crowdsec crowdsec-firewall-bouncer
+sudo apt purge crowdsec crowdsec-firewall-bouncer-nftables
+sudo nft flush ruleset  # Clear nftables rules
+```
+
+### 3. Re-provision to restore fail2ban/ferm
+
+```bash
+ansible-playbook server.yml -e env=production --tags=fail2ban,ferm
+```
+
+### 4. Verify
+
+```bash
+sudo fail2ban-client status
+sudo ferm --check /etc/ferm/ferm.conf
+```
+
+## Features
+
+- Installs CrowdSec Security Engine and nftables Firewall Bouncer
+- Trellis-aware log acquisition (per-site nginx logs)
+- Automatic migration from fail2ban/ferm
+- IP whitelists (integrates with Trellis `ip_whitelist`)
+- Import existing blocked IPs as CrowdSec decisions
+- WordPress-specific attack detection via Hub collections
+- Built-in scenarios for common attack patterns (enabled by default)
+- Custom scenario support
 
 ## Configuration
 
@@ -245,74 +348,28 @@ Duration format: `30m` (minutes), `4h` (hours), `7d` (days)
 
 ```bash
 # Service status
-sudo cscli metrics
-sudo cscli alerts list
-sudo cscli decisions list
+cscli metrics
+cscli alerts list
+cscli decisions list
 
 # Check log acquisition
-sudo cscli metrics show acquisition
+cscli metrics show acquisition
 
 # View active bans
-sudo cscli decisions list --type ban
+cscli decisions list --type ban
 
 # Manually ban an IP
-sudo cscli decisions add --ip 1.2.3.4 --duration 24h --reason "Manual ban"
+cscli decisions add --ip 1.2.3.4 --duration 24h --reason "Manual ban"
 
 # Unban an IP
-sudo cscli decisions delete --ip 1.2.3.4
+cscli decisions delete --ip 1.2.3.4
 
 # Unban all IPs banned by a specific scenario
-sudo cscli decisions delete --scenario crowdsecurity/http-probing
+cscli decisions delete --scenario crowdsecurity/http-probing
 
 # Check collections
-sudo cscli collections list
-sudo cscli hub list
-```
-
-## Migration from fail2ban
-
-1. Add this role to `galaxy.yml` and install
-2. Add role to `server.yml` (before or after commenting fail2ban/ferm)
-3. Configure `blocked_ips` to import existing blocks (optional)
-4. Run provisioning: `ansible-playbook server.yml -e env=production --tags=crowdsec`
-5. Verify: `sudo cscli metrics` shows log processing
-6. After confirming, set `crowdsec_flush_legacy_rules: true` to clean up iptables
-
-## Uninstall / Reverting to fail2ban
-
-To remove CrowdSec and restore fail2ban/ferm:
-
-1. Update `server.yml` to disable CrowdSec and re-enable legacy roles:
-
-```yaml
-roles:
-  - { role: common, tags: [common] }
-  # - { role: trellis-crowdsec, tags: [crowdsec, security] }
-  - { role: fail2ban, tags: [fail2ban] }
-  - { role: ferm, tags: [ferm] }
-```
-
-2. Stop and remove CrowdSec on the server:
-
-```bash
-# SSH into your server, then:
-sudo systemctl stop crowdsec crowdsec-firewall-bouncer
-sudo systemctl disable crowdsec crowdsec-firewall-bouncer
-sudo apt purge crowdsec crowdsec-firewall-bouncer-nftables
-sudo nft flush ruleset  # Clear nftables rules
-```
-
-3. Re-provision to restore fail2ban/ferm:
-
-```bash
-ansible-playbook server.yml -e env=production --tags=fail2ban,ferm
-```
-
-4. Verify fail2ban is running:
-
-```bash
-sudo fail2ban-client status
-sudo ferm --check /etc/ferm/ferm.conf
+cscli collections list
+cscli hub list
 ```
 
 ## License
@@ -321,4 +378,4 @@ MIT
 
 ## Author
 
-Created for Trellis WordPress deployments.
+[AltanS](https://github.com/AltanS)
