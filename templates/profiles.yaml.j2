@@ -56,6 +56,32 @@ decisions:
 on_success: break
 ---
 {% endif %}
+{% if crowdsec_scenario_encoded_attack_payload | bool %}
+# -----------------------------------------------------------------------------
+# Encoded Attack Payload - Double-encoded evasion techniques
+# -----------------------------------------------------------------------------
+name: encoded_attack_payload
+filters:
+  - Alert.Remediation == true && Alert.GetScenario() == "custom/encoded-attack-payload"
+decisions:
+  - type: ban
+    duration: {{ crowdsec_scenario_encoded_attack_payload_ban }}
+on_success: break
+---
+{% endif %}
+{% if crowdsec_scenario_xss_extended | bool %}
+# -----------------------------------------------------------------------------
+# XSS Extended - Event handler and DOM access patterns (supplements Hub)
+# -----------------------------------------------------------------------------
+name: xss_extended
+filters:
+  - Alert.Remediation == true && Alert.GetScenario() == "custom/xss-extended"
+decisions:
+  - type: ban
+    duration: {{ crowdsec_scenario_xss_extended_ban }}
+on_success: break
+---
+{% endif %}
 # -----------------------------------------------------------------------------
 # Default - All other scenarios (CrowdSec Hub scenarios)
 # -----------------------------------------------------------------------------

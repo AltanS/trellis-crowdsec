@@ -4,3 +4,5 @@ __pycache__/
 .molecule/
 .cache/
 *.log
+.venv/
+uv.lock

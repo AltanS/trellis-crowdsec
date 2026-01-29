@@ -142,6 +142,34 @@ crowdsec_scenario_custom_bad_user_agent_ban: "168h"  # Ban for 7 days (serious i
 crowdsec_scenario_ssrf_callback: true
 crowdsec_scenario_ssrf_callback_ban: "168h"       # Ban for 7 days (active exploitation)
 
+# -----------------------------------------------------------------------------
+# Encoded Attack Payload Detection
+# -----------------------------------------------------------------------------
+# Detects double-encoded and HTML-entity-encoded attack payloads in URLs.
+# These encoding techniques (e.g. %253C = double-encoded <) are used to
+# evade WAF/IDS pattern matching. Legitimate traffic never double-encodes
+# angle brackets, quotes, or slashes. Catches evasion that bypasses the
+# Hub's http-xss-probbing scenario.
+#
+# TYPE: trigger (immediate ban on first match - no capacity/leakspeed)
+crowdsec_scenario_encoded_attack_payload: true
+crowdsec_scenario_encoded_attack_payload_ban: "168h"  # Ban for 7 days (evasion = serious intent)
+
+# -----------------------------------------------------------------------------
+# Extended XSS Detection
+# -----------------------------------------------------------------------------
+# Supplements the Hub's crowdsecurity/http-xss-probbing with XSS patterns
+# it does not cover: event handler attributes (onerror=, onload=, onfocus=,
+# onmouseover=, onclick=, oninput=, onchange=) and DOM property access
+# (document.cookie, document.domain, document.location, window.location).
+# The Hub handles tag injection (%3Cscript, %3Csvg, etc.) — this covers
+# the execution vectors that follow.
+crowdsec_scenario_xss_extended: true
+crowdsec_scenario_xss_extended_capacity: 5       # Bucket size; triggers on overflow (6th matching event)
+crowdsec_scenario_xss_extended_leakspeed: "30s"  # Drain 1 request per 30 seconds
+crowdsec_scenario_xss_extended_blackhole: "5m"   # 5 min cooldown between alerts
+crowdsec_scenario_xss_extended_ban: "4h"         # Ban for 4 hours
+
 # =============================================================================
 # Console Enrollment (optional - for CrowdSec Console dashboard)
 # =============================================================================
