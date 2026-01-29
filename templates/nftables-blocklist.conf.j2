@@ -6,14 +6,17 @@
 # cannot match CIDR ranges (known bug). This table uses `flags interval` to
 # enforce both single IPs and CIDR ranges from the ip_blocklist variable.
 #
-# NOTE: nftables interval sets do not allow overlapping ranges.
-# If ip_blocklist contains overlapping entries (e.g. 10.0.0.0/8 and 10.1.0.0/16),
-# nft will reject the configuration. Remove the more specific range.
+# Flush existing table on re-apply so nft doesn't fail with "File exists".
+# auto-merge merges overlapping CIDR ranges instead of rejecting them.
+
+table inet trellis_blocklist {}
+delete table inet trellis_blocklist
 
 table inet trellis_blocklist {
   set blocked_v4 {
     type ipv4_addr
     flags interval
+    auto-merge
 {% if ip_blocklist | default([]) | length > 0 %}
     elements = {
 {% for ip in ip_blocklist | default([]) %}
