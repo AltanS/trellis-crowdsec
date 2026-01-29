@@ -21,7 +21,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 ### Changed
 - Refactored scenario tasks to use loops (improved maintainability)
 - Simplified configuration by removing redundant variables
-- Use `ip_whitelist` and `blocked_ips` directly (removed indirection)
+- Use `ip_whitelist` and `ip_blocklist` directly (removed indirection)
 
 ### Removed
 - `crowdsec_packages` variable (hardcoded)
@@ -30,7 +30,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 - `crowdsec_firewall_bouncer_package` variable (hardcoded)
 - `crowdsec_firewall_bouncer_service_enabled/state` variables (hardcoded)
 - `crowdsec_whitelists` variable (use `ip_whitelist` directly)
-- `crowdsec_blocked_ips` variable (use `blocked_ips` directly)
+- `crowdsec_blocked_ips` variable (use `ip_blocklist` directly)
 - `crowdsec_import_blocked_ips` variable (simplified)
 
 ## [0.2.0] - 2025-01-18
@@ -53,7 +53,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 - Trellis-aware log acquisition (`/srv/www/*/logs/*.log`)
 - Hub collections for WordPress, nginx, SSH, and CVE protection
 - IP whitelist integration (`ip_whitelist` variable)
-- Blocked IPs import as CrowdSec decisions (`blocked_ips` variable)
+- Blocked IPs import as CrowdSec decisions (`ip_blocklist` variable)
 - CrowdSec Console enrollment support
 - Custom scenario definitions
 - Automatic fail2ban/ferm migration (disable legacy services)

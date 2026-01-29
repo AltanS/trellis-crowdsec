@@ -175,7 +175,7 @@ ip_whitelist:
   - 198.51.100.0/24   # VPN range
 
 # Block specific IPs permanently
-blocked_ips:
+ip_blocklist:
   - 192.0.2.100
   - 198.51.100.50
 
@@ -386,10 +386,10 @@ Duration format: `30m` (minutes), `4h` (hours), `7d` (days)
 
 ### Trellis Integration Variables
 
-| Variable        | Default         | Description                    |
-| --------------- | --------------- | ------------------------------ |
-| `ip_whitelist`  | `[127.0.0.0/8]` | IPs to never block             |
-| `blocked_ips`   | `[]`            | IPs to permanently block       |
+| Variable         | Default          | Description                    |
+| ---------------- | ---------------- | ------------------------------ |
+| `ip_whitelist`   | `[127.0.0.0/8]` | IPs to never block             |
+| `ip_blocklist`   | `[]`             | IPs to permanently block       |
 
 ### CrowdSec Variables
 
@@ -406,7 +406,7 @@ Duration format: `30m` (minutes), `4h` (hours), `7d` (days)
 | `crowdsec_ban_duration_default`     | `4h`          | Default ban for Hub scenarios     |
 | `crowdsec_acquisition`              | Trellis paths | Log file acquisition              |
 | `crowdsec_firewall_bouncer_enabled` | `true`        | Install firewall bouncer          |
-| `crowdsec_blocked_ips_duration`     | `87600h`      | Block duration (10 years)         |
+| `crowdsec_ip_blocklist_duration`     | `87600h`      | Block duration (10 years)         |
 | `crowdsec_console_token`            | `""`          | Console enrollment token          |
 | `crowdsec_custom_scenarios`         | `[]`          | Custom scenario definitions       |
 

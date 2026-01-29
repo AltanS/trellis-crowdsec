@@ -222,10 +222,15 @@ ip_whitelist:
 
 # IPs/CIDRs to permanently block - imported as CrowdSec decisions
 # Override in group_vars to block known bad actors
-blocked_ips: []
+ip_blocklist: []
 
 # Duration for imported blocked IPs (default: 10 years)
-crowdsec_blocked_ips_duration: "87600h"
+crowdsec_ip_blocklist_duration: "87600h"
+
+# Deploy nftables interval set for ip_blocklist CIDR enforcement
+# Required because CrowdSec's firewall bouncer cannot handle CIDR ranges
+# in nftables (known bug: sets lack the 'interval' flag)
+crowdsec_nftables_blocklist: true
 
 # =============================================================================
 # Custom Scenarios

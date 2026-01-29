@@ -268,10 +268,10 @@
     cmd: >
       cscli decisions add
       --ip "{{ item }}"
-      --duration {{ crowdsec_blocked_ips_duration }}
-      --reason "Imported from blocked_ips"
+      --duration {{ crowdsec_ip_blocklist_duration }}
+      --reason "Imported from ip_blocklist"
       --type ban
-  loop: "{{ blocked_ips | default([]) | select('match', '^[0-9.]+$') | list }}"
+  loop: "{{ ip_blocklist | default([]) | select('match', '^[0-9.]+$') | list }}"
   register: decision_add_ip
   changed_when: "'already exists' not in decision_add_ip.stderr | default('')"
   failed_when:
@@ -279,17 +279,17 @@
     - "'already exists' not in decision_add_ip.stderr | default('')"
   when:
     - crowdsec_enabled | bool
-    - blocked_ips | default([]) | length > 0
+    - ip_blocklist | default([]) | length > 0
 
 - name: Import blocked CIDR ranges as CrowdSec decisions
   ansible.builtin.command:
     cmd: >
       cscli decisions add
       --range "{{ item }}"
-      --duration {{ crowdsec_blocked_ips_duration }}
-      --reason "Imported from blocked_ips"
+      --duration {{ crowdsec_ip_blocklist_duration }}
+      --reason "Imported from ip_blocklist"
       --type ban
-  loop: "{{ blocked_ips | default([]) | select('match', '.*/[0-9]+$') | list }}"
+  loop: "{{ ip_blocklist | default([]) | select('match', '.*/[0-9]+$') | list }}"
   register: decision_add_range
   changed_when: "'already exists' not in decision_add_range.stderr | default('')"
   failed_when:
@@ -297,7 +297,55 @@
     - "'already exists' not in decision_add_range.stderr | default('')"
   when:
     - crowdsec_enabled | bool
-    - blocked_ips | default([]) | length > 0
+    - ip_blocklist | default([]) | length > 0
+
+# =============================================================================
+# nftables Blocklist (CIDR Range Enforcement)
+# =============================================================================
+- name: Ensure nftables.d directory exists
+  ansible.builtin.file:
+    path: /etc/nftables.d
+    state: directory
+    owner: root
+    group: root
+    mode: '0755'
+  when:
+    - crowdsec_enabled | bool
+    - crowdsec_nftables_blocklist | bool
+    - ip_blocklist | default([]) | length > 0
+
+- name: Deploy nftables blocklist configuration
+  ansible.builtin.template:
+    src: nftables-blocklist.conf.j2
+    dest: /etc/nftables.d/trellis-blocklist.conf
+    owner: root
+    group: root
+    mode: '0644'
+  notify: Apply nftables blocklist
+  when:
+    - crowdsec_enabled | bool
+    - crowdsec_nftables_blocklist | bool
+    - ip_blocklist | default([]) | length > 0
+
+- name: Remove nftables blocklist when disabled
+  ansible.builtin.file:
+    path: /etc/nftables.d/trellis-blocklist.conf
+    state: absent
+  notify: Remove nftables blocklist table
+  when:
+    - crowdsec_enabled | bool
+    - not (crowdsec_nftables_blocklist | bool) or (ip_blocklist | default([]) | length == 0)
+
+- name: Ensure nftables.conf includes nftables.d directory
+  ansible.builtin.lineinfile:
+    path: /etc/nftables.conf
+    line: 'include "/etc/nftables.d/*.conf"'
+    create: false
+  failed_when: false
+  when:
+    - crowdsec_enabled | bool
+    - crowdsec_nftables_blocklist | bool
+    - ip_blocklist | default([]) | length > 0
 
 # =============================================================================
 # Custom Scenarios

@@ -4,5 +4,6 @@ __pycache__/
 .molecule/
 .cache/
 *.log
+.ansible/
 .venv/
 uv.lock
