@@ -170,6 +170,49 @@ crowdsec_scenario_xss_extended_leakspeed: "30s"  # Drain 1 request per 30 second
 crowdsec_scenario_xss_extended_blackhole: "5m"   # 5 min cooldown between alerts
 crowdsec_scenario_xss_extended_ban: "4h"         # Ban for 4 hours
 
+# -----------------------------------------------------------------------------
+# Cache-Buster Probe Detection
+# -----------------------------------------------------------------------------
+# Detects bot networks using cache-busting query parameters to probe WordPress
+# sites. Matches requests with exactly one query parameter where the key is
+# 2-8 alphanumeric chars and the value is 4+ digits (e.g. ?cb=12345, ?ddd=67890).
+# This pattern is used by rotating bot networks on Hetzner/Contabo/DigitalOcean.
+# The regex anchors (^...$) ensure the entire query string is one parameter,
+# excluding multi-param requests. static_ressource filter excludes ?ver= on assets.
+crowdsec_scenario_cache_buster_probe: true
+crowdsec_scenario_cache_buster_probe_capacity: 8       # Trigger after 8 requests
+crowdsec_scenario_cache_buster_probe_leakspeed: "2m"   # Drain 1 request per 2 minutes
+crowdsec_scenario_cache_buster_probe_blackhole: "5m"   # 5 min cooldown between alerts
+crowdsec_scenario_cache_buster_probe_ban: "168h"       # Ban for 7 days
+
+# -----------------------------------------------------------------------------
+# Open Redirect Probe Detection
+# -----------------------------------------------------------------------------
+# Detects redirect parameter fuzzing — bots trying hundreds of redirect-like
+# parameter names (redirect=, goto=, next=, returnTo=, etc.) with external URL
+# targets. Requires BOTH a redirect parameter name AND an external URL value.
+# Uses distinct counting on http_args to count unique query strings per IP,
+# so only scanners trying many different param/URL combos trigger the ban.
+# WordPress internal redirects (?redirect_to=/my-account/) do NOT match
+# because they lack http:// or https:// in the value.
+crowdsec_scenario_open_redirect_probe: true
+crowdsec_scenario_open_redirect_probe_capacity: 5       # Trigger after 5 unique query strings
+crowdsec_scenario_open_redirect_probe_leakspeed: "30s"  # Drain 1 per 30 seconds
+crowdsec_scenario_open_redirect_probe_blackhole: "5m"   # 5 min cooldown between alerts
+crowdsec_scenario_open_redirect_probe_ban: "168h"       # Ban for 7 days
+
+# -----------------------------------------------------------------------------
+# Parameter Stuffing Detection
+# -----------------------------------------------------------------------------
+# Detects requests with 20+ query parameters, which is a strong indicator of
+# parameter fuzzing (testing many redirect/injection params at once). No
+# legitimate WordPress/WooCommerce request sends 20+ params in the query string.
+# WordPress bulk admin operations use POST body, not query strings.
+#
+# TYPE: trigger (immediate ban on first match - no capacity/leakspeed)
+crowdsec_scenario_param_stuffing: true
+crowdsec_scenario_param_stuffing_ban: "168h"            # Ban for 7 days
+
 # =============================================================================
 # Console Enrollment (optional - for CrowdSec Console dashboard)
 # =============================================================================

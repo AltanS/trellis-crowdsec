@@ -158,7 +158,7 @@ sudo ferm --check /etc/ferm/ferm.conf
 
 Out of the box, you get:
 - WordPress, nginx, and SSH protection via CrowdSec Hub collections
-- Built-in scenarios for actuator probes, debug fuzzing, scanner user agents, and SSRF callbacks
+- Nine built-in scenarios: actuator probes, debug fuzzing, scanner user agents, SSRF callbacks, encoded attack payloads, XSS patterns, cache-buster bot detection, open redirect fuzzing, and parameter stuffing
 - Trellis log paths (`/srv/www/*/logs/*.log`)
 - nftables firewall bouncer
 - Localhost whitelisted (`127.0.0.0/8`)
@@ -298,7 +298,7 @@ crowdsec_scenarios_remove:
 
 ### Built-in Scenarios
 
-This role includes four built-in scenarios that are **enabled by default** to protect against common attack patterns. All parameters are configurable.
+This role includes nine built-in scenarios that are **enabled by default** to protect against common attack patterns. All parameters are configurable.
 
 #### Scenario Parameters Explained
 
@@ -355,6 +355,60 @@ Detected domains: burpcollaborator.net, oastify.com, interact.sh, canarytokens.c
 | `crowdsec_scenario_ssrf_callback` | `true` | Enable/disable scenario |
 | `crowdsec_scenario_ssrf_callback_ban` | `168h` | Ban duration (7 days) |
 
+#### Encoded Attack Payload Detection
+
+Detects double-encoded attack characters and scanner quote probe patterns in URLs. These encoding techniques (`%253C` = double-encoded `<`, `%27%22` = URL-encoded `'"`) are used to evade WAF/IDS pattern matching. Legitimate traffic never uses these patterns.
+
+| Variable | Default | Description |
+| -------- | ------- | ----------- |
+| `crowdsec_scenario_encoded_attack_payload` | `true` | Enable/disable scenario |
+| `crowdsec_scenario_encoded_attack_payload_ban` | `168h` | Ban duration (7 days) |
+
+#### Extended XSS Detection
+
+Supplements the Hub's `http-xss-probbing` scenario with XSS patterns it does not cover: event handler attributes (`onerror=`, `onload=`, `onfocus=`, `onmouseover=`) and DOM property access (`document.cookie`, `document.domain`).
+
+| Variable | Default | Description |
+| -------- | ------- | ----------- |
+| `crowdsec_scenario_xss_extended` | `true` | Enable/disable scenario |
+| `crowdsec_scenario_xss_extended_capacity` | `5` | Unique payloads before triggering |
+| `crowdsec_scenario_xss_extended_leakspeed` | `30s` | Drain rate |
+| `crowdsec_scenario_xss_extended_blackhole` | `5m` | Cooldown between alerts |
+| `crowdsec_scenario_xss_extended_ban` | `4h` | Ban duration |
+
+#### Cache-Buster Probe Detection
+
+Detects bot networks using cache-busting query parameters to probe WordPress sites. Matches requests where the entire query string is a single parameter with a 2-8 character alphanumeric key and a 4+ digit numeric value (e.g. `?cb=12345`, `?ddd=67890`). Excludes static resources and WordPress parameters with underscores.
+
+| Variable | Default | Description |
+| -------- | ------- | ----------- |
+| `crowdsec_scenario_cache_buster_probe` | `true` | Enable/disable scenario |
+| `crowdsec_scenario_cache_buster_probe_capacity` | `8` | Requests before triggering |
+| `crowdsec_scenario_cache_buster_probe_leakspeed` | `2m` | Drain rate |
+| `crowdsec_scenario_cache_buster_probe_blackhole` | `5m` | Cooldown between alerts |
+| `crowdsec_scenario_cache_buster_probe_ban` | `168h` | Ban duration (7 days) |
+
+#### Open Redirect Probe Detection
+
+Detects redirect parameter fuzzing -- bots trying many different redirect-like parameter names (`redirect=`, `goto=`, `next=`, `returnTo=`, etc.) with external URL targets. Requires both a redirect parameter name AND an external URL value (`http://`, `https://`). WordPress internal redirects (`?redirect_to=/my-account/`) do not match. Uses distinct counting so only IPs sending many unique query string combinations trigger.
+
+| Variable | Default | Description |
+| -------- | ------- | ----------- |
+| `crowdsec_scenario_open_redirect_probe` | `true` | Enable/disable scenario |
+| `crowdsec_scenario_open_redirect_probe_capacity` | `5` | Unique query strings before triggering |
+| `crowdsec_scenario_open_redirect_probe_leakspeed` | `30s` | Drain rate |
+| `crowdsec_scenario_open_redirect_probe_blackhole` | `5m` | Cooldown between alerts |
+| `crowdsec_scenario_open_redirect_probe_ban` | `168h` | Ban duration (7 days) |
+
+#### Parameter Stuffing Detection
+
+Detects requests with 20+ query parameters, a strong indicator of parameter fuzzing. No legitimate WordPress/WooCommerce request sends 20+ parameters in the query string. WordPress bulk admin operations use POST body.
+
+| Variable | Default | Description |
+| -------- | ------- | ----------- |
+| `crowdsec_scenario_param_stuffing` | `true` | Enable/disable scenario |
+| `crowdsec_scenario_param_stuffing_ban` | `168h` | Ban duration (7 days) |
+
 #### Disabling Scenarios
 
 ```yaml
@@ -363,6 +417,11 @@ crowdsec_scenario_actuator_probe: false
 crowdsec_scenario_debug_fuzzing: false
 crowdsec_scenario_custom_bad_user_agent: false
 crowdsec_scenario_ssrf_callback: false
+crowdsec_scenario_encoded_attack_payload: false
+crowdsec_scenario_xss_extended: false
+crowdsec_scenario_cache_buster_probe: false
+crowdsec_scenario_open_redirect_probe: false
+crowdsec_scenario_param_stuffing: false
 ```
 
 ### Ban Durations
@@ -378,6 +437,11 @@ crowdsec_scenario_actuator_probe_ban: "24h"
 crowdsec_scenario_debug_fuzzing_ban: "12h"
 crowdsec_scenario_custom_bad_user_agent_ban: "168h"  # 7 days
 crowdsec_scenario_ssrf_callback_ban: "168h"          # 7 days
+crowdsec_scenario_encoded_attack_payload_ban: "168h" # 7 days
+crowdsec_scenario_xss_extended_ban: "4h"
+crowdsec_scenario_cache_buster_probe_ban: "168h"     # 7 days
+crowdsec_scenario_open_redirect_probe_ban: "168h"    # 7 days
+crowdsec_scenario_param_stuffing_ban: "168h"         # 7 days
 ```
 
 Duration format: `30m` (minutes), `4h` (hours), `7d` (days)

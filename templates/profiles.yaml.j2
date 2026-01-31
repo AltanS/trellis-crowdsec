@@ -82,6 +82,45 @@ decisions:
 on_success: break
 ---
 {% endif %}
+{% if crowdsec_scenario_cache_buster_probe | bool %}
+# -----------------------------------------------------------------------------
+# Cache-Buster Probe - Bot network cache-busting parameter detection
+# -----------------------------------------------------------------------------
+name: cache_buster_probe
+filters:
+  - Alert.Remediation == true && Alert.GetScenario() == "custom/cache-buster-probe"
+decisions:
+  - type: ban
+    duration: {{ crowdsec_scenario_cache_buster_probe_ban }}
+on_success: break
+---
+{% endif %}
+{% if crowdsec_scenario_open_redirect_probe | bool %}
+# -----------------------------------------------------------------------------
+# Open Redirect Probe - Redirect parameter fuzzing with external URLs
+# -----------------------------------------------------------------------------
+name: open_redirect_probe
+filters:
+  - Alert.Remediation == true && Alert.GetScenario() == "custom/open-redirect-probe"
+decisions:
+  - type: ban
+    duration: {{ crowdsec_scenario_open_redirect_probe_ban }}
+on_success: break
+---
+{% endif %}
+{% if crowdsec_scenario_param_stuffing | bool %}
+# -----------------------------------------------------------------------------
+# Parameter Stuffing - 20+ query parameter detection
+# -----------------------------------------------------------------------------
+name: param_stuffing
+filters:
+  - Alert.Remediation == true && Alert.GetScenario() == "custom/param-stuffing"
+decisions:
+  - type: ban
+    duration: {{ crowdsec_scenario_param_stuffing_ban }}
+on_success: break
+---
+{% endif %}
 # -----------------------------------------------------------------------------
 # Default - All other scenarios (CrowdSec Hub scenarios)
 # -----------------------------------------------------------------------------

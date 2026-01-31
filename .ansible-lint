@@ -1,0 +1,53 @@
+---
+# ansible-lint configuration for trellis-crowdsec role
+# https://ansible.readthedocs.io/projects/lint/configuring/
+
+profile: production
+
+# The role lives at the repo root; tell ansible-lint where to find it
+project_dir: .
+
+# Offline mode - don't download collections/roles during linting
+offline: true
+
+# Paths to lint (role structure at repo root)
+exclude_paths:
+  - .venv/
+  - .git/
+  - .ansible/
+  - .claude/
+
+# Enable YAML file extensions for templates
+kinds:
+  - tasks: "tasks/*.yml"
+  - handlers: "handlers/*.yml"
+  - vars: "vars/*.yml"
+  - meta: "meta/main.yml"
+  - yaml: "defaults/*.yml"
+  - jinja2: "templates/**/*.j2"
+
+# Rule-specific configuration
+skip_list:
+  # command-instead-of-module: cscli/nft are CrowdSec-specific CLIs with no
+  # Ansible module equivalent. Every ansible.builtin.command usage in this role
+  # is intentional -- there are no Ansible modules for CrowdSec hub management,
+  # bouncer registration, console enrollment, or nftables table manipulation.
+  - command-instead-of-module
+
+  # command-instead-of-shell: all command tasks already use
+  # ansible.builtin.command (not shell), but the linter sometimes flags the
+  # pattern regardless. Suppress to avoid false positives.
+  - command-instead-of-shell
+
+  # no-changed-when: several cscli commands use changed_when with output
+  # inspection (e.g. checking stderr for "already"). The role handles this
+  # correctly but the rule flags any command task without literal
+  # changed_when: false.
+  - no-changed-when
+
+# Warn instead of failing on these rules
+warn_list:
+  - experimental
+
+# Use the role name from meta/main.yml
+mock_roles: []

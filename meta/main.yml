@@ -12,13 +12,10 @@ galaxy_info:
   platforms:
     - name: Ubuntu
       versions:
-        - "20.04"
-        - "22.04"
-        - "24.04"
+        - all
     - name: Debian
       versions:
-        - "11"
-        - "12"
+        - all
 
   galaxy_tags:
     - security
@@ -26,5 +23,5 @@ galaxy_info:
     - firewall
     - wordpress
     - trellis
-    - intrusion-detection
-    - fail2ban-replacement
+    - intrusiondetection
+    - fail2banreplacement

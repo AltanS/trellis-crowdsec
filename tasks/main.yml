@@ -366,7 +366,10 @@
       (crowdsec_scenario_custom_bad_user_agent | bool) or
       (crowdsec_scenario_ssrf_callback | bool) or
       (crowdsec_scenario_encoded_attack_payload | bool) or
-      (crowdsec_scenario_xss_extended | bool)
+      (crowdsec_scenario_xss_extended | bool) or
+      (crowdsec_scenario_cache_buster_probe | bool) or
+      (crowdsec_scenario_open_redirect_probe | bool) or
+      (crowdsec_scenario_param_stuffing | bool)
 
 - name: Deploy http-probing override (exclude 404)
   ansible.builtin.template:
@@ -419,6 +422,9 @@
     - { template: ssrf-callback, enabled: "{{ crowdsec_scenario_ssrf_callback }}" }
     - { template: encoded-attack-payload, enabled: "{{ crowdsec_scenario_encoded_attack_payload }}" }
     - { template: xss-extended, enabled: "{{ crowdsec_scenario_xss_extended }}" }
+    - { template: cache-buster-probe, enabled: "{{ crowdsec_scenario_cache_buster_probe }}" }
+    - { template: open-redirect-probe, enabled: "{{ crowdsec_scenario_open_redirect_probe }}" }
+    - { template: param-stuffing, enabled: "{{ crowdsec_scenario_param_stuffing }}" }
   loop_control:
     label: "{{ item.template }}"
   notify: Reload crowdsec
@@ -437,6 +443,9 @@
     - { template: ssrf-callback, enabled: "{{ crowdsec_scenario_ssrf_callback }}" }
     - { template: encoded-attack-payload, enabled: "{{ crowdsec_scenario_encoded_attack_payload }}" }
     - { template: xss-extended, enabled: "{{ crowdsec_scenario_xss_extended }}" }
+    - { template: cache-buster-probe, enabled: "{{ crowdsec_scenario_cache_buster_probe }}" }
+    - { template: open-redirect-probe, enabled: "{{ crowdsec_scenario_open_redirect_probe }}" }
+    - { template: param-stuffing, enabled: "{{ crowdsec_scenario_param_stuffing }}" }
     - { template: bad-user-agent, enabled: false }  # Legacy cleanup
   loop_control:
     label: "{{ item.template }}"
