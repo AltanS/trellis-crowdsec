@@ -18,7 +18,7 @@ description: "Detect parameter stuffing with 20+ query parameters"
 filter: |
   evt.Meta.service == 'http' and
   evt.Parsed.static_ressource == 'false' and
-  RegexpMatch(evt.Meta.http_args, "([^&]*&){19,}")
+  evt.Meta.http_args matches "([^&]*&){19,}"
 groupby: evt.Meta.source_ip
 labels:
   service: http
