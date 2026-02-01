@@ -369,7 +369,9 @@
       (crowdsec_scenario_xss_extended | bool) or
       (crowdsec_scenario_cache_buster_probe | bool) or
       (crowdsec_scenario_open_redirect_probe | bool) or
-      (crowdsec_scenario_param_stuffing | bool)
+      (crowdsec_scenario_param_stuffing | bool) or
+      (crowdsec_scenario_aggressive_crawl | bool) or
+      (crowdsec_scenario_sustained_crawl | bool)
 
 - name: Deploy http-probing override (exclude 404)
   ansible.builtin.template:
@@ -425,6 +427,8 @@
     - { template: cache-buster-probe, enabled: "{{ crowdsec_scenario_cache_buster_probe }}" }
     - { template: open-redirect-probe, enabled: "{{ crowdsec_scenario_open_redirect_probe }}" }
     - { template: param-stuffing, enabled: "{{ crowdsec_scenario_param_stuffing }}" }
+    - { template: aggressive-crawl, enabled: "{{ crowdsec_scenario_aggressive_crawl }}" }
+    - { template: sustained-crawl, enabled: "{{ crowdsec_scenario_sustained_crawl }}" }
   loop_control:
     label: "{{ item.template }}"
   notify: Reload crowdsec
@@ -446,6 +450,8 @@
     - { template: cache-buster-probe, enabled: "{{ crowdsec_scenario_cache_buster_probe }}" }
     - { template: open-redirect-probe, enabled: "{{ crowdsec_scenario_open_redirect_probe }}" }
     - { template: param-stuffing, enabled: "{{ crowdsec_scenario_param_stuffing }}" }
+    - { template: aggressive-crawl, enabled: "{{ crowdsec_scenario_aggressive_crawl }}" }
+    - { template: sustained-crawl, enabled: "{{ crowdsec_scenario_sustained_crawl }}" }
     - { template: bad-user-agent, enabled: false }  # Legacy cleanup
   loop_control:
     label: "{{ item.template }}"

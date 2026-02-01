@@ -18,7 +18,11 @@ filter: |
   evt.Meta.http_user_agent contains 'wpscan' or
   evt.Meta.http_user_agent contains 'Team Anon Force' or
   evt.Meta.http_user_agent contains 'Mozlila' or
-  evt.Meta.http_user_agent startsWith 'Moz111a'
+  evt.Meta.http_user_agent startsWith 'Moz111a' or
+  evt.Meta.http_user_agent contains 'depconf_deep_scanner' or
+  evt.Meta.http_user_agent contains 'getodin.com' or
+  evt.Meta.http_user_agent contains 'cypex.ai/scanning' or
+  evt.Meta.http_user_agent contains 'onlyscans.com'
 groupby: evt.Meta.source_ip
 labels:
   service: http

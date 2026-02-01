@@ -14,17 +14,27 @@ filter: |
   evt.Meta.http_args contains '.oast.site' or
   evt.Meta.http_args contains '.oast.online' or
   evt.Meta.http_args contains '.oast.me' or
+  evt.Meta.http_args contains 'oast.me' or
   evt.Meta.http_args contains 'burpcollaborator.net' or
   evt.Meta.http_args contains 'oastify.com' or
   evt.Meta.http_args contains 'interact.sh' or
   evt.Meta.http_args contains 'canarytokens.com' or
   evt.Meta.http_args contains 'requestbin.net' or
   evt.Meta.http_args contains 'webhook.site' or
+  evt.Meta.http_args contains 'evil.com' or
   evt.Meta.http_path contains '.oast.fun' or
   evt.Meta.http_path contains '.oast.live' or
+  evt.Meta.http_path contains '.oast.site' or
+  evt.Meta.http_path contains '.oast.online' or
+  evt.Meta.http_path contains '.oast.me' or
+  evt.Meta.http_path contains 'oast.me' or
   evt.Meta.http_path contains 'burpcollaborator.net' or
   evt.Meta.http_path contains 'oastify.com' or
-  evt.Meta.http_path contains 'interact.sh'
+  evt.Meta.http_path contains 'interact.sh' or
+  evt.Meta.http_path contains 'canarytokens.com' or
+  evt.Meta.http_path contains 'requestbin.net' or
+  evt.Meta.http_path contains 'webhook.site' or
+  evt.Meta.http_path contains 'evil.com'
 groupby: evt.Meta.source_ip
 labels:
   service: http

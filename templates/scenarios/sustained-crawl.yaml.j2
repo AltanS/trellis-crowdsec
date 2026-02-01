@@ -1,0 +1,36 @@
+# CrowdSec Scenario: Sustained Crawl Detection
+# Managed by Ansible - do not edit manually
+#
+# Complements custom/aggressive-crawl by catching slow-but-persistent scrapers
+# that evade unique-path-based detection. Uses raw request count (no distinct
+# filter) with a higher capacity and slower drain, targeting IPs that sustain
+# a high volume of non-static requests over minutes rather than seconds.
+#
+# Example: Coordinated scraper clusters using 4+ IPs, each doing 25-40
+# non-static requests/min — too slow for aggressive-crawl's distinct filter
+# but clearly not human browsing behavior over sustained periods.
+#
+# False positive analysis: a legitimate user at 10 pages/min (0.17/sec)
+# would need to sustain that for 28+ minutes to trigger (capacity 120,
+# drain 0.1/sec). That pattern doesn't exist in normal browsing.
+#
+# Excludes Ahrefs crawlers — legitimate SEO tool.
+# Googlebot/Bingbot are already excluded by crowdsecurity/whitelist-good-actors.
+
+type: leaky
+name: custom/sustained-crawl
+description: "Detect slow-but-persistent crawling by total request volume"
+filter: |
+  evt.Meta.log_type in ['http_access-log', 'http_error-log'] and
+  evt.Parsed.static_ressource == 'false' and
+  evt.Parsed.verb in ['GET', 'HEAD'] and
+  not evt.Meta.http_user_agent contains 'Ahrefs'
+groupby: evt.Meta.source_ip
+capacity: {{ crowdsec_scenario_sustained_crawl_capacity }}
+leakspeed: {{ crowdsec_scenario_sustained_crawl_leakspeed }}
+blackhole: {{ crowdsec_scenario_sustained_crawl_blackhole }}
+cache_size: 5
+labels:
+  service: http
+  type: crawl
+  remediation: true

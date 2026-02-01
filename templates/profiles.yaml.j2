@@ -121,6 +121,32 @@ decisions:
 on_success: break
 ---
 {% endif %}
+{% if crowdsec_scenario_aggressive_crawl | bool %}
+# -----------------------------------------------------------------------------
+# Aggressive Crawl - WordPress-compatible crawl detection
+# -----------------------------------------------------------------------------
+name: aggressive_crawl
+filters:
+  - Alert.Remediation == true && Alert.GetScenario() == "custom/aggressive-crawl"
+decisions:
+  - type: ban
+    duration: {{ crowdsec_scenario_aggressive_crawl_ban }}
+on_success: break
+---
+{% endif %}
+{% if crowdsec_scenario_sustained_crawl | bool %}
+# -----------------------------------------------------------------------------
+# Sustained Crawl - Slow-but-persistent scraper detection
+# -----------------------------------------------------------------------------
+name: sustained_crawl
+filters:
+  - Alert.Remediation == true && Alert.GetScenario() == "custom/sustained-crawl"
+decisions:
+  - type: ban
+    duration: {{ crowdsec_scenario_sustained_crawl_ban }}
+on_success: break
+---
+{% endif %}
 # -----------------------------------------------------------------------------
 # Default - All other scenarios (CrowdSec Hub scenarios)
 # -----------------------------------------------------------------------------

@@ -64,7 +64,7 @@ crowdsec_http_probing_exclude_404: false
 # Ban duration format: "4h" (hours), "30m" (minutes), "7d" (days)
 
 # Default ban duration for CrowdSec Hub scenarios (ssh-bf, http-probing, etc.)
-crowdsec_ban_duration_default: "4h"
+crowdsec_ban_duration_default: "24h"
 
 # =============================================================================
 # Built-in Scenarios
@@ -122,7 +122,8 @@ crowdsec_scenario_debug_fuzzing_ban: "12h"        # Ban for 12 hours
 #
 # Hub scenario triggers after 2 requests; this triggers immediately.
 # Detected agents: ffuf, sqlmap, nikto, nuclei, gobuster, dirbuster, wpscan,
-#                  Team Anon Force, Mozlila, Moz111a
+#                  Team Anon Force, Mozlila, Moz111a, depconf_deep_scanner,
+#                  getodin.com, cypex.ai/scanning, onlyscans.com
 #
 # TYPE: trigger (immediate ban on first match - no capacity/leakspeed)
 crowdsec_scenario_custom_bad_user_agent: true
@@ -136,7 +137,7 @@ crowdsec_scenario_custom_bad_user_agent_ban: "168h"  # Ban for 7 days (serious i
 # security testing tools (Burp, nuclei, etc.) for out-of-band detection.
 #
 # Detected domains: burpcollaborator.net, oastify.com, interact.sh,
-#                   canarytokens.com, requestbin.net, webhook.site, *.oast.*
+#                   canarytokens.com, requestbin.net, webhook.site, evil.com, *.oast.*
 #
 # TYPE: trigger (immediate ban on first match - no capacity/leakspeed)
 crowdsec_scenario_ssrf_callback: true
@@ -212,6 +213,41 @@ crowdsec_scenario_open_redirect_probe_ban: "168h"       # Ban for 7 days
 # TYPE: trigger (immediate ban on first match - no capacity/leakspeed)
 crowdsec_scenario_param_stuffing: true
 crowdsec_scenario_param_stuffing_ban: "168h"            # Ban for 7 days
+
+# -----------------------------------------------------------------------------
+# Aggressive Crawl Detection (WordPress-compatible)
+# -----------------------------------------------------------------------------
+# Supplements the Hub's http-crawl-non_statics scenario which breaks on
+# WordPress pretty permalinks. The Hub uses distinct: "evt.Parsed.file_name"
+# but WordPress URLs end with / (e.g. /bonus/, /tipps/match-prognose/),
+# making file_name always empty and collapsing all requests into 1 bucket entry.
+#
+# This scenario uses distinct on the full URL path instead, and a slower
+# leak rate to catch both fast scrapers (~9 req/sec, triggers in ~5s) and
+# slow persistent scrapers (~0.5 req/sec, triggers in ~2min).
+#
+# False positive analysis: a user browsing 15 pages/min (0.25/sec) would
+# need to sustain that for 13+ minutes to trigger — not realistic behavior.
+crowdsec_scenario_aggressive_crawl: true
+crowdsec_scenario_aggressive_crawl_capacity: 40         # Trigger after 40 unique paths
+crowdsec_scenario_aggressive_crawl_leakspeed: "5s"      # Drain 1 request per 5 seconds (0.2/sec)
+crowdsec_scenario_aggressive_crawl_blackhole: "5m"      # 5 min cooldown between alerts
+crowdsec_scenario_aggressive_crawl_ban: "168h"          # Ban for 7 days (persistent scraping)
+
+# -----------------------------------------------------------------------------
+# Sustained Crawl Detection
+# -----------------------------------------------------------------------------
+# Complements aggressive-crawl by catching slow-but-persistent scrapers that
+# evade unique-path-based detection. Uses raw request count (no distinct
+# filter) with higher capacity and slower drain. Targets coordinated scraper
+# clusters using multiple IPs at 25-40 non-static requests/min each.
+#
+# A legitimate user at 10 pages/min needs 28+ minutes sustained to trigger.
+crowdsec_scenario_sustained_crawl: true
+crowdsec_scenario_sustained_crawl_capacity: 120          # Trigger after 120 requests
+crowdsec_scenario_sustained_crawl_leakspeed: "10s"       # Drain 1 request per 10 seconds (0.1/sec)
+crowdsec_scenario_sustained_crawl_blackhole: "5m"        # 5 min cooldown between alerts
+crowdsec_scenario_sustained_crawl_ban: "168h"            # Ban for 7 days (persistent scraping)
 
 # =============================================================================
 # Console Enrollment (optional - for CrowdSec Console dashboard)

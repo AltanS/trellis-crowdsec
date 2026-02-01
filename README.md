@@ -158,7 +158,7 @@ sudo ferm --check /etc/ferm/ferm.conf
 
 Out of the box, you get:
 - WordPress, nginx, and SSH protection via CrowdSec Hub collections
-- Nine built-in scenarios: actuator probes, debug fuzzing, scanner user agents, SSRF callbacks, encoded attack payloads, XSS patterns, cache-buster bot detection, open redirect fuzzing, and parameter stuffing
+- Eleven built-in scenarios: actuator probes, debug fuzzing, scanner user agents, SSRF callbacks, encoded attack payloads, XSS patterns, cache-buster bot detection, open redirect fuzzing, parameter stuffing, aggressive crawl detection, and sustained crawl detection
 - Trellis log paths (`/srv/www/*/logs/*.log`)
 - nftables firewall bouncer
 - Localhost whitelisted (`127.0.0.0/8`)
@@ -298,7 +298,7 @@ crowdsec_scenarios_remove:
 
 ### Built-in Scenarios
 
-This role includes nine built-in scenarios that are **enabled by default** to protect against common attack patterns. All parameters are configurable.
+This role includes eleven built-in scenarios that are **enabled by default** to protect against common attack patterns. All parameters are configurable.
 
 #### Scenario Parameters Explained
 
@@ -337,7 +337,7 @@ Detects probing for debug endpoints and error parameters (`/debug`, `?error=`, `
 
 Supplements the Hub's `http-bad-user-agent` scenario (500+ auto-updated patterns) with **immediate blocking** for the most egregious scanner user agents. The Hub scenario triggers after 2 requests; this triggers immediately on first match.
 
-Detected agents: ffuf, sqlmap, nikto, nuclei, gobuster, dirbuster, wpscan, Team Anon Force, Mozlila, Moz111a
+Detected agents: ffuf, sqlmap, nikto, nuclei, gobuster, dirbuster, wpscan, Team Anon Force, Mozlila, Moz111a, depconf_deep_scanner, getodin.com, cypex.ai/scanning, onlyscans.com
 
 | Variable | Default | Description |
 | -------- | ------- | ----------- |
@@ -348,7 +348,7 @@ Detected agents: ffuf, sqlmap, nikto, nuclei, gobuster, dirbuster, wpscan, Team 
 
 Detects Server-Side Request Forgery (SSRF) attempts using callback domains to exfiltrate data or confirm vulnerabilities. These domains are used by security testing tools for out-of-band detection.
 
-Detected domains: burpcollaborator.net, oastify.com, interact.sh, canarytokens.com, requestbin.net, webhook.site, *.oast.*
+Detected domains: burpcollaborator.net, oastify.com, interact.sh, canarytokens.com, requestbin.net, webhook.site, evil.com, *.oast.*
 
 | Variable | Default | Description |
 | -------- | ------- | ----------- |
@@ -409,6 +409,30 @@ Detects requests with 20+ query parameters, a strong indicator of parameter fuzz
 | `crowdsec_scenario_param_stuffing` | `true` | Enable/disable scenario |
 | `crowdsec_scenario_param_stuffing_ban` | `168h` | Ban duration (7 days) |
 
+#### Aggressive Crawl Detection
+
+WordPress-compatible replacement for the Hub's `http-crawl-non_statics` scenario, which is broken on WordPress sites using pretty permalinks. The Hub scenario uses `distinct: "evt.Parsed.file_name"`, but WordPress URLs end with `/` (e.g. `/bonus/`, `/tipps/match-prognose/`), making `file_name` always empty and collapsing all requests into one bucket entry. This scenario uses `distinct: "evt.Meta.http_path"` instead, counting each unique URL path separately. Catches fast scrapers (~9 req/sec) in ~5 seconds and slow persistent scrapers (~0.5 req/sec) in ~2 minutes. Excludes Ahrefs crawlers.
+
+| Variable | Default | Description |
+| -------- | ------- | ----------- |
+| `crowdsec_scenario_aggressive_crawl` | `true` | Enable/disable scenario |
+| `crowdsec_scenario_aggressive_crawl_capacity` | `40` | Unique paths before triggering |
+| `crowdsec_scenario_aggressive_crawl_leakspeed` | `5s` | Drain rate |
+| `crowdsec_scenario_aggressive_crawl_blackhole` | `5m` | Cooldown between alerts |
+| `crowdsec_scenario_aggressive_crawl_ban` | `168h` | Ban duration (7 days) |
+
+#### Sustained Crawl Detection
+
+Complements `aggressive-crawl` by catching slow-but-persistent scrapers that evade unique-path-based detection. Uses raw request count (no `distinct` filter) with higher capacity and slower drain. Targets coordinated scraper clusters using multiple IPs at 25-40 non-static requests/min each. A legitimate user at 10 pages/min would need 28+ minutes sustained to trigger. Excludes Ahrefs crawlers.
+
+| Variable | Default | Description |
+| -------- | ------- | ----------- |
+| `crowdsec_scenario_sustained_crawl` | `true` | Enable/disable scenario |
+| `crowdsec_scenario_sustained_crawl_capacity` | `120` | Requests before triggering |
+| `crowdsec_scenario_sustained_crawl_leakspeed` | `10s` | Drain rate |
+| `crowdsec_scenario_sustained_crawl_blackhole` | `5m` | Cooldown between alerts |
+| `crowdsec_scenario_sustained_crawl_ban` | `168h` | Ban duration (7 days) |
+
 #### Disabling Scenarios
 
 ```yaml
@@ -422,6 +446,8 @@ crowdsec_scenario_xss_extended: false
 crowdsec_scenario_cache_buster_probe: false
 crowdsec_scenario_open_redirect_probe: false
 crowdsec_scenario_param_stuffing: false
+crowdsec_scenario_aggressive_crawl: false
+crowdsec_scenario_sustained_crawl: false
 ```
 
 ### Ban Durations
@@ -430,7 +456,7 @@ Ban durations are configured via CrowdSec profiles. This role deploys a custom `
 
 ```yaml
 # Default ban duration for CrowdSec Hub scenarios (ssh-bf, http-probing, etc.)
-crowdsec_ban_duration_default: "4h"
+crowdsec_ban_duration_default: "24h"
 
 # Override built-in scenario ban durations
 crowdsec_scenario_actuator_probe_ban: "24h"
@@ -442,6 +468,8 @@ crowdsec_scenario_xss_extended_ban: "4h"
 crowdsec_scenario_cache_buster_probe_ban: "168h"     # 7 days
 crowdsec_scenario_open_redirect_probe_ban: "168h"    # 7 days
 crowdsec_scenario_param_stuffing_ban: "168h"         # 7 days
+crowdsec_scenario_aggressive_crawl_ban: "168h"       # 7 days
+crowdsec_scenario_sustained_crawl_ban: "168h"        # 7 days
 ```
 
 Duration format: `30m` (minutes), `4h` (hours), `7d` (days)
@@ -467,7 +495,7 @@ Duration format: `30m` (minutes), `4h` (hours), `7d` (days)
 | `crowdsec_scenarios`                | `[]`          | Additional scenarios              |
 | `crowdsec_scenarios_remove`         | `[]`          | Scenarios to remove               |
 | `crowdsec_http_probing_exclude_404` | `false`       | Exclude 404s from http-probing    |
-| `crowdsec_ban_duration_default`     | `4h`          | Default ban for Hub scenarios     |
+| `crowdsec_ban_duration_default`     | `24h`         | Default ban for Hub scenarios     |
 | `crowdsec_acquisition`              | Trellis paths | Log file acquisition              |
 | `crowdsec_firewall_bouncer_enabled` | `true`        | Install firewall bouncer          |
 | `crowdsec_ip_blocklist_duration`     | `87600h`      | Block duration (10 years)         |
