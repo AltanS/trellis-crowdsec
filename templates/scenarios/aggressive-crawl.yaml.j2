@@ -25,7 +25,7 @@ filter: |
   evt.Meta.log_type in ['http_access-log', 'http_error-log'] and
   evt.Parsed.static_ressource == 'false' and
   evt.Parsed.verb in ['GET', 'HEAD'] and
-  not evt.Meta.http_user_agent contains 'Ahrefs'
+  !(evt.Meta.http_user_agent contains 'Ahrefs')
 distinct: "evt.Meta.http_path"
 groupby: evt.Meta.source_ip
 capacity: {{ crowdsec_scenario_aggressive_crawl_capacity }}
