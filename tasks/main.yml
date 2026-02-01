@@ -459,3 +459,6 @@
   when:
     - crowdsec_enabled | bool
     - not (item.enabled | bool)
+
+- name: broken task
+  shell: echo bad
