@@ -10,12 +10,14 @@
 # non-static requests/min — too slow for aggressive-crawl's distinct filter
 # but clearly not human browsing behavior over sustained periods.
 #
-# False positive analysis: a legitimate user at 10 pages/min (0.17/sec)
-# would need to sustain that for 28+ minutes to trigger (capacity 120,
-# drain 0.1/sec). That pattern doesn't exist in normal browsing.
+# Paths matching crowdsec_crawl_exclude_paths are excluded to avoid false
+# positives from frontend JavaScript firing multiple API requests per page
+# view. API abuse (injection, XSS, SQLi) is still caught by dedicated
+# attack-detection scenarios.
 #
-# Excludes Ahrefs crawlers — legitimate SEO tool.
-# Googlebot/Bingbot are already excluded by crowdsecurity/whitelist-good-actors.
+# User agents matching crowdsec_crawl_exclude_user_agents are excluded for
+# legitimate crawlers. Googlebot/Bingbot are already excluded by
+# crowdsecurity/whitelist-good-actors.
 
 type: leaky
 name: custom/sustained-crawl
@@ -24,7 +26,12 @@ filter: |
   evt.Meta.log_type in ['http_access-log', 'http_error-log'] and
   evt.Parsed.static_ressource == 'false' and
   evt.Parsed.verb in ['GET', 'HEAD'] and
-  !(evt.Meta.http_user_agent contains 'Ahrefs')
+{% for path in crowdsec_crawl_exclude_paths | default([]) %}
+  !(evt.Meta.http_path startsWith '{{ path }}') and
+{% endfor %}
+{% for ua in crowdsec_crawl_exclude_user_agents | default([]) %}
+  !(evt.Meta.http_user_agent contains '{{ ua }}'){{ " and" if not loop.last else "" }}
+{% endfor %}
 groupby: evt.Meta.source_ip
 capacity: {{ crowdsec_scenario_sustained_crawl_capacity }}
 leakspeed: {{ crowdsec_scenario_sustained_crawl_leakspeed }}

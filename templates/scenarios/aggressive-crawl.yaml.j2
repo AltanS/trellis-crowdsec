@@ -12,11 +12,14 @@
 # rate (5s vs 0.5s), it catches both fast scrapers (~9 req/sec, triggers
 # in ~5s) and slow persistent scrapers (~0.5 req/sec, triggers in ~2min).
 #
-# A legitimate user browsing 15 pages/min (0.25/sec) would need to sustain
-# that rate for 13+ minutes to trigger — not realistic browsing behavior.
+# Paths matching crowdsec_crawl_exclude_paths are excluded to avoid false
+# positives from frontend JavaScript firing multiple API requests per page
+# view. API abuse (injection, XSS, SQLi) is still caught by dedicated
+# attack-detection scenarios.
 #
-# Excludes Ahrefs crawlers (AhrefsBot, AhrefsSiteAudit) — legitimate SEO tool.
-# Googlebot/Bingbot are already excluded by crowdsecurity/whitelist-good-actors.
+# User agents matching crowdsec_crawl_exclude_user_agents are excluded for
+# legitimate crawlers. Googlebot/Bingbot are already excluded by
+# crowdsecurity/whitelist-good-actors.
 
 type: leaky
 name: custom/aggressive-crawl
@@ -25,7 +28,12 @@ filter: |
   evt.Meta.log_type in ['http_access-log', 'http_error-log'] and
   evt.Parsed.static_ressource == 'false' and
   evt.Parsed.verb in ['GET', 'HEAD'] and
-  !(evt.Meta.http_user_agent contains 'Ahrefs')
+{% for path in crowdsec_crawl_exclude_paths | default([]) %}
+  !(evt.Meta.http_path startsWith '{{ path }}') and
+{% endfor %}
+{% for ua in crowdsec_crawl_exclude_user_agents | default([]) %}
+  !(evt.Meta.http_user_agent contains '{{ ua }}'){{ " and" if not loop.last else "" }}
+{% endfor %}
 distinct: "evt.Meta.http_path"
 groupby: evt.Meta.source_ip
 capacity: {{ crowdsec_scenario_aggressive_crawl_capacity }}

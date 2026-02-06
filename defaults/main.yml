@@ -72,6 +72,19 @@ crowdsec_ban_duration_default: "24h"
 # These scenarios are included with this role and enabled by default.
 # Each scenario has tunable parameters explained below.
 #
+# Path prefixes to exclude from crawl detection (aggressive-crawl, sustained-crawl).
+# WordPress frontend JS fires multiple REST API requests per page view,
+# which inflates request counts and causes false positives on real users.
+# API abuse (injection, XSS, SQLi) is still caught by dedicated attack scenarios.
+crowdsec_crawl_exclude_paths:
+  - "/wp-json/"
+
+# User agent substrings to exclude from crawl detection.
+# Legitimate crawlers that should not trigger crawl scenarios.
+# Googlebot/Bingbot are already excluded by crowdsecurity/whitelist-good-actors.
+crowdsec_crawl_exclude_user_agents:
+  - "Ahrefs"
+#
 # SCENARIO PARAMETERS:
 # --------------------
 # capacity    - Number of events allowed before triggering (bucket size)
@@ -226,8 +239,8 @@ crowdsec_scenario_param_stuffing_ban: "168h"            # Ban for 7 days
 # leak rate to catch both fast scrapers (~9 req/sec, triggers in ~5s) and
 # slow persistent scrapers (~0.5 req/sec, triggers in ~2min).
 #
-# False positive analysis: a user browsing 15 pages/min (0.25/sec) would
-# need to sustain that for 13+ minutes to trigger — not realistic behavior.
+# Excludes /wp-json/ REST API calls to avoid false positives from
+# frontend JavaScript firing multiple API requests per page view.
 crowdsec_scenario_aggressive_crawl: true
 crowdsec_scenario_aggressive_crawl_capacity: 40         # Trigger after 40 unique paths
 crowdsec_scenario_aggressive_crawl_leakspeed: "5s"      # Drain 1 request per 5 seconds (0.2/sec)
@@ -242,7 +255,8 @@ crowdsec_scenario_aggressive_crawl_ban: "168h"          # Ban for 7 days (persis
 # filter) with higher capacity and slower drain. Targets coordinated scraper
 # clusters using multiple IPs at 25-40 non-static requests/min each.
 #
-# A legitimate user at 10 pages/min needs 28+ minutes sustained to trigger.
+# Excludes /wp-json/ REST API calls to avoid false positives from
+# frontend JavaScript firing multiple API requests per page view.
 crowdsec_scenario_sustained_crawl: true
 crowdsec_scenario_sustained_crawl_capacity: 120          # Trigger after 120 requests
 crowdsec_scenario_sustained_crawl_leakspeed: "10s"       # Drain 1 request per 10 seconds (0.1/sec)
