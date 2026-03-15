@@ -235,6 +235,37 @@
     - crowdsec_firewall_bouncer_enabled | bool
 
 # =============================================================================
+# Bouncer Auto-Restart on Agent Restart
+# =============================================================================
+# When CrowdSec agent restarts (after OOM recovery, update, etc.), the bouncer
+# must re-sync its nftables sets. Without this, the bouncer runs with stale/empty
+# sets and blocked IPs pass through the firewall.
+- name: Create crowdsec service override directory
+  ansible.builtin.file:
+    path: /etc/systemd/system/crowdsec.service.d
+    state: directory
+    owner: root
+    group: root
+    mode: '0755'
+  when:
+    - crowdsec_enabled | bool
+    - crowdsec_firewall_bouncer_enabled | bool
+
+- name: Bind bouncer restart to agent restart
+  ansible.builtin.copy:
+    dest: /etc/systemd/system/crowdsec.service.d/restart-bouncer.conf
+    content: |
+      [Service]
+      ExecStartPost=/bin/systemctl restart crowdsec-firewall-bouncer
+    owner: root
+    group: root
+    mode: '0644'
+  notify: Reload systemd daemon
+  when:
+    - crowdsec_enabled | bool
+    - crowdsec_firewall_bouncer_enabled | bool
+
+# =============================================================================
 # IP Whitelists
 # =============================================================================
 - name: Ensure CrowdSec parser directory exists
@@ -459,4 +490,3 @@
   when:
     - crowdsec_enabled | bool
     - not (item.enabled | bool)
-

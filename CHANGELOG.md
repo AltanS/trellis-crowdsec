@@ -7,7 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.9.0] - 2026-03-15
+
 ### Added
+- Bouncer auto-restart on agent restart — deploys a systemd drop-in (`ExecStartPost`) that restarts `crowdsec-firewall-bouncer` whenever the CrowdSec agent starts. Prevents stale/empty nftables sets after OOM recovery or agent updates.
 - `aggressive-crawl` scenario — WordPress-compatible crawl detection that replaces the Hub's broken `http-crawl-non_statics` scenario. The Hub scenario uses `distinct: "evt.Parsed.file_name"` which is always empty for WordPress pretty permalink URLs ending in `/`, collapsing all requests into one bucket entry. This scenario uses `distinct: "evt.Meta.http_path"` instead. Capacity 40, leakspeed 5s. Catches fast scrapers in ~5 seconds. Excludes Ahrefs crawlers.
 - `sustained-crawl` scenario — slow-but-persistent scraper detection. No `distinct` filter; counts all non-static GET/HEAD requests. Capacity 120, leakspeed 10s. Catches coordinated scraper clusters doing 25-40 req/min per IP within 3-6 minutes. Excludes Ahrefs crawlers.
 - Four new scanner user agents to `custom-bad-user-agent`: `depconf_deep_scanner`, `getodin.com`, `cypex.ai/scanning`, `onlyscans.com`
@@ -100,7 +103,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 - Automatic fail2ban/ferm migration (disable legacy services)
 - Legacy iptables cleanup option
 
-[Unreleased]: https://github.com/AltanS/trellis-crowdsec/compare/v0.6.1...HEAD
+[Unreleased]: https://github.com/AltanS/trellis-crowdsec/compare/v0.9.0...HEAD
+[0.9.0]: https://github.com/AltanS/trellis-crowdsec/compare/v0.8.0...v0.9.0
 [0.6.1]: https://github.com/AltanS/trellis-crowdsec/compare/v0.6.0...v0.6.1
 [0.6.0]: https://github.com/AltanS/trellis-crowdsec/compare/v0.5.1...v0.6.0
 [0.5.1]: https://github.com/AltanS/trellis-crowdsec/compare/v0.4.0...v0.5.1

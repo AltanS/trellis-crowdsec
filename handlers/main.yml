@@ -14,6 +14,10 @@
     name: crowdsec-firewall-bouncer
     state: restarted
 
+- name: Reload systemd daemon
+  ansible.builtin.systemd:
+    daemon_reload: true
+
 - name: Apply nftables blocklist
   ansible.builtin.command:
     cmd: nft -f /etc/nftables.d/trellis-blocklist.conf
