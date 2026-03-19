@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.9.1] - 2026-03-19
+
+### Fixed
+- Bouncer race condition: stop bouncer immediately after `apt install` (before API key is configured) to prevent it running with wrong credentials from the package auto-start
+- Replace `ExecStartPost` agent drop-in with `PartOf=crowdsec.service` bouncer drop-in — systemd natively restarts/stops the bouncer when the agent restarts, avoiding double-restart race conditions with stale netlink handles
+- Add post-start nftables verification: the play now fails loudly if the bouncer's `ip crowdsec` table doesn't appear within 10 seconds, preventing silent enforcement failures
+- Clean up legacy `ExecStartPost` drop-in from prior deploys
+
 ## [0.9.0] - 2026-03-15
 
 ### Added

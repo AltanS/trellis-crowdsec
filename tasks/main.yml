@@ -188,9 +188,22 @@
   ansible.builtin.apt:
     name: crowdsec-firewall-bouncer-nftables
     state: present
+  register: bouncer_install
   when:
     - crowdsec_enabled | bool
     - crowdsec_firewall_bouncer_enabled | bool
+
+# apt auto-starts the bouncer on first install, but the API key hasn't been
+# configured yet so it connects with the wrong credentials. Stop it now and
+# let it start cleanly after configuration is complete.
+- name: Stop bouncer after fresh install (pre-configuration)
+  ansible.builtin.service:
+    name: crowdsec-firewall-bouncer
+    state: stopped
+  when:
+    - crowdsec_enabled | bool
+    - crowdsec_firewall_bouncer_enabled | bool
+    - bouncer_install is changed
 
 - name: Check if firewall bouncer is already registered
   ansible.builtin.command:
@@ -234,15 +247,48 @@
     - crowdsec_enabled | bool
     - crowdsec_firewall_bouncer_enabled | bool
 
+# Flush handlers now so the bouncer restarts (if notified) before verification.
+- name: Flush handlers before bouncer verification
+  ansible.builtin.meta: flush_handlers
+
+# Verify the bouncer actually created its nftables sets. Without this check,
+# a misconfigured or crashed bouncer is a silent failure — the service shows
+# "active" but no traffic is actually blocked.
+- name: Wait for bouncer nftables table to appear
+  ansible.builtin.command:
+    cmd: nft list table ip crowdsec
+  register: bouncer_nft_check
+  retries: 5
+  delay: 2
+  until: bouncer_nft_check.rc == 0
+  changed_when: false
+  failed_when: false
+  when:
+    - crowdsec_enabled | bool
+    - crowdsec_firewall_bouncer_enabled | bool
+
+- name: Warn if bouncer nftables table is missing
+  ansible.builtin.fail:
+    msg: >-
+      CrowdSec firewall bouncer is running but its nftables table (ip crowdsec)
+      was not found after 10 seconds. The bouncer is NOT enforcing any decisions.
+      Check: journalctl -u crowdsec-firewall-bouncer --no-pager -n 50
+  when:
+    - crowdsec_enabled | bool
+    - crowdsec_firewall_bouncer_enabled | bool
+    - bouncer_nft_check.rc is defined
+    - bouncer_nft_check.rc != 0
+
 # =============================================================================
 # Bouncer Auto-Restart on Agent Restart
 # =============================================================================
 # When CrowdSec agent restarts (after OOM recovery, update, etc.), the bouncer
-# must re-sync its nftables sets. Without this, the bouncer runs with stale/empty
-# sets and blocked IPs pass through the firewall.
-- name: Create crowdsec service override directory
+# must re-sync its nftables sets. PartOf= tells systemd to restart/stop the
+# bouncer whenever the agent is restarted/stopped, avoiding the race condition
+# that ExecStartPost caused (double-restart with stale netlink handles).
+- name: Create bouncer service override directory
   ansible.builtin.file:
-    path: /etc/systemd/system/crowdsec.service.d
+    path: /etc/systemd/system/crowdsec-firewall-bouncer.service.d
     state: directory
     owner: root
     group: root
@@ -251,15 +297,25 @@
     - crowdsec_enabled | bool
     - crowdsec_firewall_bouncer_enabled | bool
 
-- name: Bind bouncer restart to agent restart
+- name: Bind bouncer lifecycle to agent via PartOf
   ansible.builtin.copy:
-    dest: /etc/systemd/system/crowdsec.service.d/restart-bouncer.conf
+    dest: /etc/systemd/system/crowdsec-firewall-bouncer.service.d/partof-crowdsec.conf
     content: |
-      [Service]
-      ExecStartPost=/bin/systemctl restart crowdsec-firewall-bouncer
+      [Unit]
+      PartOf=crowdsec.service
     owner: root
     group: root
     mode: '0644'
+  notify: Reload systemd daemon
+  when:
+    - crowdsec_enabled | bool
+    - crowdsec_firewall_bouncer_enabled | bool
+
+# Clean up legacy ExecStartPost drop-in if present from prior deploys
+- name: Remove legacy ExecStartPost drop-in
+  ansible.builtin.file:
+    path: /etc/systemd/system/crowdsec.service.d/restart-bouncer.conf
+    state: absent
   notify: Reload systemd daemon
   when:
     - crowdsec_enabled | bool
