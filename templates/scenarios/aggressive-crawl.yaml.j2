@@ -27,9 +27,9 @@ description: "Detect aggressive crawling on WordPress sites (pretty permalink co
 filter: |
   evt.Meta.log_type in ['http_access-log', 'http_error-log'] and
   evt.Parsed.static_ressource == 'false' and
-  evt.Parsed.verb in ['GET', 'HEAD'] and
+  evt.Parsed.verb in ['GET', 'HEAD']{{ " and" if crowdsec_crawl_exclude_paths | default([]) or crowdsec_crawl_exclude_user_agents | default([]) else "" }}
 {% for path in crowdsec_crawl_exclude_paths | default([]) %}
-  !(evt.Meta.http_path startsWith '{{ path }}') and
+  !(evt.Meta.http_path startsWith '{{ path }}'){{ " and" if not loop.last or crowdsec_crawl_exclude_user_agents | default([]) else "" }}
 {% endfor %}
 {% for ua in crowdsec_crawl_exclude_user_agents | default([]) %}
   !(evt.Meta.http_user_agent contains '{{ ua }}'){{ " and" if not loop.last else "" }}
