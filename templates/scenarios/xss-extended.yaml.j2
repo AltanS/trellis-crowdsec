@@ -7,6 +7,8 @@
 #
 #   - Event handler attributes: onerror=, onload=, onfocus=, onmouseover=
 #   - DOM property access: document.cookie, document.domain
+#   - Single-encoded tag-close: %3c/ and %3e (observed in May 2026 bild probes:
+#     every param value set to %3c/kj — bare single-encoded closing tag fragment)
 #
 # Both scenarios are response-code-independent (fire on any HTTP status).
 # This is a leaky bucket — triggers after multiple distinct attack payloads
@@ -54,7 +56,13 @@ filter: |
     evt.Parsed.http_args contains 'document.cookie' or
     evt.Parsed.http_args contains 'document.domain' or
     evt.Parsed.http_args contains 'document.location' or
-    evt.Parsed.http_args contains 'window.location'
+    evt.Parsed.http_args contains 'window.location' or
+    # Single-encoded tag brackets — targets May 2026 bild probe shape (%3c/kj × 60 params)
+    # Leaky bucket mitigates FP risk from legitimate %3c in search queries
+    evt.Parsed.http_args contains '%3c' or
+    evt.Parsed.http_args contains '%3C' or
+    evt.Parsed.http_args contains '%3e' or
+    evt.Parsed.http_args contains '%3E'
   )
 groupby: evt.Meta.source_ip
 distinct: "evt.Parsed.http_args"

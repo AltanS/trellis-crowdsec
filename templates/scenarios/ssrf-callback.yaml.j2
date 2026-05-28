@@ -11,7 +11,7 @@
 
 type: trigger
 name: custom/ssrf-callback
-description: "Detect SSRF attempts with callback domains"
+description: "Detect SSRF attempts with callback domains and internal-resource schemes"
 filter: |
   evt.Parsed.http_args contains '.oast.fun' or
   evt.Parsed.http_args contains '.oast.live' or
@@ -26,6 +26,13 @@ filter: |
   evt.Parsed.http_args contains 'requestbin.net' or
   evt.Parsed.http_args contains 'webhook.site' or
   evt.Parsed.http_args contains 'evil.com' or
+  # SSRF internal-resource and junk-scheme patterns — targets observed bild probe shapes
+  # (a:// junk scheme, link-local metadata IP 169.254, loopback 127.0.0.1, file/gopher schemes)
+  evt.Parsed.http_args contains 'a://' or
+  evt.Parsed.http_args contains '169.254' or
+  evt.Parsed.http_args contains '127.0.0.1' or
+  evt.Parsed.http_args contains 'file://' or
+  evt.Parsed.http_args contains 'gopher://' or
   evt.Meta.http_path contains '.oast.fun' or
   evt.Meta.http_path contains '.oast.live' or
   evt.Meta.http_path contains '.oast.site' or
