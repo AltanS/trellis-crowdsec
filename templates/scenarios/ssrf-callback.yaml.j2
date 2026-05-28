@@ -26,8 +26,6 @@ filter: |
   evt.Parsed.http_args contains 'requestbin.net' or
   evt.Parsed.http_args contains 'webhook.site' or
   evt.Parsed.http_args contains 'evil.com' or
-  # SSRF internal-resource and junk-scheme patterns — targets observed bild probe shapes
-  # (a:// junk scheme, link-local metadata IP 169.254, loopback 127.0.0.1, file/gopher schemes)
   evt.Parsed.http_args contains 'a://' or
   evt.Parsed.http_args contains '169.254' or
   evt.Parsed.http_args contains '127.0.0.1' or

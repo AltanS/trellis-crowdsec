@@ -57,8 +57,6 @@ filter: |
     evt.Parsed.http_args contains 'document.domain' or
     evt.Parsed.http_args contains 'document.location' or
     evt.Parsed.http_args contains 'window.location' or
-    # Single-encoded tag brackets — targets May 2026 bild probe shape (%3c/kj × 60 params)
-    # Leaky bucket mitigates FP risk from legitimate %3c in search queries
     evt.Parsed.http_args contains '%3c' or
     evt.Parsed.http_args contains '%3C' or
     evt.Parsed.http_args contains '%3e' or
