@@ -12,6 +12,10 @@
 # Uses distinct counting on http_args so only unique query string combinations
 # fill the bucket. Normal users reuse the same redirect param; scanners try
 # dozens of different param names with external URLs.
+#
+# Field note: crowdsecurity/http-logs enricher populates the query string into
+# evt.Parsed.http_args (NOT evt.Meta.http_args, which is never created).
+# Using evt.Meta.http_args was a silent no-op — the filter always saw empty string.
 
 type: leaky
 name: custom/open-redirect-probe
@@ -19,34 +23,34 @@ description: "Detect redirect parameter fuzzing with external URL targets"
 filter: |
   evt.Meta.service == 'http' and
   evt.Parsed.static_ressource == 'false' and (
-    evt.Meta.http_args contains 'redirect=' or
-    evt.Meta.http_args contains 'redirect_to=' or
-    evt.Meta.http_args contains 'redirect_uri=' or
-    evt.Meta.http_args contains 'redirect_url=' or
-    evt.Meta.http_args contains 'redir=' or
-    evt.Meta.http_args contains 'goto=' or
-    evt.Meta.http_args contains 'next=' or
-    evt.Meta.http_args contains 'returnTo=' or
-    evt.Meta.http_args contains 'return_to=' or
-    evt.Meta.http_args contains 'return_url=' or
-    evt.Meta.http_args contains 'continue=' or
-    evt.Meta.http_args contains 'dest=' or
-    evt.Meta.http_args contains 'destination=' or
-    evt.Meta.http_args contains 'checkout_url=' or
-    evt.Meta.http_args contains 'login_url=' or
-    evt.Meta.http_args contains 'logout_url='
+    evt.Parsed.http_args contains 'redirect=' or
+    evt.Parsed.http_args contains 'redirect_to=' or
+    evt.Parsed.http_args contains 'redirect_uri=' or
+    evt.Parsed.http_args contains 'redirect_url=' or
+    evt.Parsed.http_args contains 'redir=' or
+    evt.Parsed.http_args contains 'goto=' or
+    evt.Parsed.http_args contains 'next=' or
+    evt.Parsed.http_args contains 'returnTo=' or
+    evt.Parsed.http_args contains 'return_to=' or
+    evt.Parsed.http_args contains 'return_url=' or
+    evt.Parsed.http_args contains 'continue=' or
+    evt.Parsed.http_args contains 'dest=' or
+    evt.Parsed.http_args contains 'destination=' or
+    evt.Parsed.http_args contains 'checkout_url=' or
+    evt.Parsed.http_args contains 'login_url=' or
+    evt.Parsed.http_args contains 'logout_url='
   ) and (
-    evt.Meta.http_args contains 'http%3A' or
-    evt.Meta.http_args contains 'http%3a' or
-    evt.Meta.http_args contains 'https%3A' or
-    evt.Meta.http_args contains 'https%3a' or
-    evt.Meta.http_args contains 'http://' or
-    evt.Meta.http_args contains 'https://' or
-    evt.Meta.http_args contains '%2F%2F' or
-    evt.Meta.http_args contains '%2f%2f'
+    evt.Parsed.http_args contains 'http%3A' or
+    evt.Parsed.http_args contains 'http%3a' or
+    evt.Parsed.http_args contains 'https%3A' or
+    evt.Parsed.http_args contains 'https%3a' or
+    evt.Parsed.http_args contains 'http://' or
+    evt.Parsed.http_args contains 'https://' or
+    evt.Parsed.http_args contains '%2F%2F' or
+    evt.Parsed.http_args contains '%2f%2f'
   )
 groupby: evt.Meta.source_ip
-distinct: "evt.Meta.http_args"
+distinct: "evt.Parsed.http_args"
 capacity: {{ crowdsec_scenario_open_redirect_probe_capacity }}
 leakspeed: {{ crowdsec_scenario_open_redirect_probe_leakspeed }}
 blackhole: {{ crowdsec_scenario_open_redirect_probe_blackhole }}

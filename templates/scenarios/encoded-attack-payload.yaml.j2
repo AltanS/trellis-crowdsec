@@ -15,6 +15,10 @@
 # legitimately in OAuth callbacks and REST API URL parameters.
 # Note: %26%23 is narrowed to specific attack-relevant HTML entities (< and >)
 # rather than matching all HTML entity references.
+#
+# Field note: crowdsecurity/http-logs enricher populates the query string into
+# evt.Parsed.http_args (NOT evt.Meta.http_args, which is never created).
+# The http_path arm correctly uses evt.Meta.http_path (populated by the enricher).
 
 type: trigger
 name: custom/encoded-attack-payload
@@ -22,22 +26,22 @@ description: "Detect double-encoded, HTML-entity-encoded, and scanner quote prob
 filter: |
   evt.Meta.service == 'http' and
   evt.Parsed.static_ressource == 'false' and (
-    evt.Meta.http_args contains '%253C' or
-    evt.Meta.http_args contains '%253c' or
-    evt.Meta.http_args contains '%253E' or
-    evt.Meta.http_args contains '%253e' or
-    evt.Meta.http_args contains '%2522' or
-    evt.Meta.http_args contains '%2527' or
-    evt.Meta.http_args contains '%255C' or
-    evt.Meta.http_args contains '%255c' or
-    evt.Meta.http_args contains '%26%23x3c' or
-    evt.Meta.http_args contains '%26%23x3C' or
-    evt.Meta.http_args contains '%26%23x3e' or
-    evt.Meta.http_args contains '%26%23x3E' or
-    evt.Meta.http_args contains '%26%23060' or
-    evt.Meta.http_args contains '%26%23062' or
-    evt.Meta.http_args contains '%27%22' or
-    evt.Meta.http_args contains '%22%27' or
+    evt.Parsed.http_args contains '%253C' or
+    evt.Parsed.http_args contains '%253c' or
+    evt.Parsed.http_args contains '%253E' or
+    evt.Parsed.http_args contains '%253e' or
+    evt.Parsed.http_args contains '%2522' or
+    evt.Parsed.http_args contains '%2527' or
+    evt.Parsed.http_args contains '%255C' or
+    evt.Parsed.http_args contains '%255c' or
+    evt.Parsed.http_args contains '%26%23x3c' or
+    evt.Parsed.http_args contains '%26%23x3C' or
+    evt.Parsed.http_args contains '%26%23x3e' or
+    evt.Parsed.http_args contains '%26%23x3E' or
+    evt.Parsed.http_args contains '%26%23060' or
+    evt.Parsed.http_args contains '%26%23062' or
+    evt.Parsed.http_args contains '%27%22' or
+    evt.Parsed.http_args contains '%22%27' or
     evt.Meta.http_path contains '%253C' or
     evt.Meta.http_path contains '%253c' or
     evt.Meta.http_path contains '%253E' or

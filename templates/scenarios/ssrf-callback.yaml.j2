@@ -4,24 +4,28 @@
 # Detects Server-Side Request Forgery (SSRF) attempts that use callback
 # domains to exfiltrate data or confirm vulnerability. These domains are
 # used by security testing tools to receive out-of-band callbacks.
+#
+# Field note: crowdsecurity/http-logs enricher populates the query string into
+# evt.Parsed.http_args (NOT evt.Meta.http_args, which is never created).
+# Using evt.Meta.http_args was a silent no-op — the filter always saw empty string.
 
 type: trigger
 name: custom/ssrf-callback
 description: "Detect SSRF attempts with callback domains"
 filter: |
-  evt.Meta.http_args contains '.oast.fun' or
-  evt.Meta.http_args contains '.oast.live' or
-  evt.Meta.http_args contains '.oast.site' or
-  evt.Meta.http_args contains '.oast.online' or
-  evt.Meta.http_args contains '.oast.me' or
-  evt.Meta.http_args contains 'oast.me' or
-  evt.Meta.http_args contains 'burpcollaborator.net' or
-  evt.Meta.http_args contains 'oastify.com' or
-  evt.Meta.http_args contains 'interact.sh' or
-  evt.Meta.http_args contains 'canarytokens.com' or
-  evt.Meta.http_args contains 'requestbin.net' or
-  evt.Meta.http_args contains 'webhook.site' or
-  evt.Meta.http_args contains 'evil.com' or
+  evt.Parsed.http_args contains '.oast.fun' or
+  evt.Parsed.http_args contains '.oast.live' or
+  evt.Parsed.http_args contains '.oast.site' or
+  evt.Parsed.http_args contains '.oast.online' or
+  evt.Parsed.http_args contains '.oast.me' or
+  evt.Parsed.http_args contains 'oast.me' or
+  evt.Parsed.http_args contains 'burpcollaborator.net' or
+  evt.Parsed.http_args contains 'oastify.com' or
+  evt.Parsed.http_args contains 'interact.sh' or
+  evt.Parsed.http_args contains 'canarytokens.com' or
+  evt.Parsed.http_args contains 'requestbin.net' or
+  evt.Parsed.http_args contains 'webhook.site' or
+  evt.Parsed.http_args contains 'evil.com' or
   evt.Meta.http_path contains '.oast.fun' or
   evt.Meta.http_path contains '.oast.live' or
   evt.Meta.http_path contains '.oast.site' or

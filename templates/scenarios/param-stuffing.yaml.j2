@@ -11,6 +11,10 @@
 #   - No legitimate WordPress/WooCommerce request sends 20+ query string params
 #   - WordPress bulk admin operations use POST body, not query strings
 #   - WooCommerce product filters rarely exceed 10 params
+#
+# Field note: crowdsecurity/http-logs enricher populates the query string into
+# evt.Parsed.http_args (NOT evt.Meta.http_args, which is never created).
+# Using evt.Meta.http_args was a silent no-op — the filter always saw empty string.
 
 type: trigger
 name: custom/param-stuffing
@@ -18,7 +22,7 @@ description: "Detect parameter stuffing with 20+ query parameters"
 filter: |
   evt.Meta.service == 'http' and
   evt.Parsed.static_ressource == 'false' and
-  evt.Meta.http_args matches "([^&]*&){19,}"
+  evt.Parsed.http_args matches "([^&]*&){19,}"
 groupby: evt.Meta.source_ip
 labels:
   service: http
