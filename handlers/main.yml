@@ -29,12 +29,18 @@
   failed_when: false
   changed_when: true
 
+# Restart the oneshot loader BEFORE the web bouncer.
+# Ansible runs handlers in definition order — this handler must be defined
+# before Restart crowdsec-firewall-bouncer-web so that when both are notified
+# (e.g. by the nft template task), the table is re-laid first and the bouncer
+# re-attaches to the fresh table cleanly. Re-laying under a running bouncer
+# breaks its netlink handle (bug 6, v0.9.5).
+- name: Restart crowdsec-web-nftables
+  ansible.builtin.service:
+    name: crowdsec-web-nftables
+    state: restarted
+
 - name: Restart crowdsec-firewall-bouncer-web
   ansible.builtin.service:
     name: crowdsec-firewall-bouncer-web
     state: restarted
-
-- name: Apply crowdsec-web nftables
-  ansible.builtin.command:
-    cmd: nft -f /etc/nftables/crowdsec-web.conf
-  changed_when: true

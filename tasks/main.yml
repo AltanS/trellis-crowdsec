@@ -555,12 +555,15 @@
 # nftables drop (tcp dport {80,443} ONLY). The default bouncer continues to
 # handle type:ban all-ports for SSH brute-force and manual ip_blocklist.
 #
-# Architecture (v0.9.5 — empirically validated on bild staging 2026-05-29):
+# Architecture (v0.9.6 — empirically validated on bild staging 2026-05-29):
 #   - Bouncer runs in set-only mode: writes IPs into pre-created sets in the
 #     crowdsec-web table. Does NOT manage rules itself.
 #   - nftables-crowdsec-web.conf.j2 owns the table, sets, and port-scoped chain.
-#   - ExecStartPre on the bouncer service re-applies the nft template on every
-#     (re)start, guaranteeing the table pre-exists before the bouncer connects.
+#   - A dedicated oneshot unit (crowdsec-web-nftables.service) lays the nft table
+#     ONCE per boot/start. The bouncer unit has NO ExecStartPre — re-laying the
+#     table under a running bouncer breaks its netlink handle (bug 6, v0.9.5).
+#   - Boot persistence: nftables.service is disabled on these boxes so
+#     /etc/nftables.conf is NOT loaded on boot. The oneshot unit fills that gap.
 #   - API key is idempotent: existing key extracted from deployed config on each
 #     provision; fresh key minted only when the config is absent or key is blank.
 #
@@ -645,16 +648,17 @@
     - web_bouncer_key_fresh.rc is defined
     - web_bouncer_key_fresh.rc == 0
 
-# Step 3: Deploy the nft table config.
-# This file is also re-applied via ExecStartPre on every bouncer start.
+# Step 3: Deploy the nft table config to /etc/nftables.d/ (correct dir — /etc/nftables/ does not exist).
 - name: Deploy crowdsec-web nftables table config
   ansible.builtin.template:
     src: nftables-crowdsec-web.conf.j2
-    dest: /etc/nftables/crowdsec-web.conf
+    dest: /etc/nftables.d/crowdsec-web.conf
     owner: root
     group: root
     mode: '0644'
-  notify: Apply crowdsec-web nftables
+  notify:
+    - Restart crowdsec-web-nftables
+    - Restart crowdsec-firewall-bouncer-web
   when:
     - crowdsec_enabled | bool
     - crowdsec_firewall_bouncer_enabled | bool
@@ -675,10 +679,45 @@
     - crowdsec_firewall_bouncer_enabled | bool
     - crowdsec_web_scope_http_bans | bool
 
-# Step 5: Deploy web bouncer systemd service unit.
-# ExecStartPre re-applies the nft table on every (re)start, guaranteeing the
-# crowdsec-web table pre-exists before the bouncer connects to LAPI.
-# PartOf=crowdsec.service binds lifecycle so the bouncer restarts with the engine.
+# Step 5a: Deploy crowdsec-web-nftables oneshot unit.
+# This unit lays the nft table ONCE per boot (or explicit start) via RemainAfterExit.
+# It does NOT re-lay the table on every bouncer restart — that was bug 6 (v0.9.5):
+# re-laying under a live bouncer tears the table out from under the bouncer's
+# netlink handle, causing "no such file or directory" on every decision commit.
+# nftables.service is disabled on these boxes, so this oneshot fills the boot gap.
+- name: Deploy crowdsec-web-nftables oneshot systemd unit
+  ansible.builtin.copy:
+    dest: /etc/systemd/system/crowdsec-web-nftables.service
+    owner: root
+    group: root
+    mode: '0644'
+    content: |
+      [Unit]
+      Description=Lay CrowdSec web-scope port-scoped nftables table before web bouncer
+      After=crowdsec.service
+      PartOf=crowdsec.service
+
+      [Service]
+      Type=oneshot
+      RemainAfterExit=yes
+      ExecStart=/usr/sbin/nft -f /etc/nftables.d/crowdsec-web.conf
+
+      [Install]
+      WantedBy=multi-user.target
+  notify:
+    - Reload systemd daemon
+    - Restart crowdsec-web-nftables
+    - Restart crowdsec-firewall-bouncer-web
+  when:
+    - crowdsec_enabled | bool
+    - crowdsec_firewall_bouncer_enabled | bool
+    - crowdsec_web_scope_http_bans | bool
+
+# Step 5b: Deploy web bouncer systemd service unit.
+# NO ExecStartPre — the oneshot unit (crowdsec-web-nftables.service) owns the table.
+# Re-laying the table in ExecStartPre would tear it out from under the bouncer's
+# netlink handle on every restart (bug 6). Bouncer attaches to stable pre-existing table.
+# Requires= + After=crowdsec-web-nftables.service ensures table is up before bouncer starts.
 - name: Deploy web bouncer systemd service unit
   ansible.builtin.copy:
     dest: /etc/systemd/system/crowdsec-firewall-bouncer-web.service
@@ -690,11 +729,12 @@
       Description=CrowdSec Firewall Bouncer - Web scope (HTTP-attack web-ban decisions)
       Documentation=https://docs.crowdsec.net
       After=crowdsec.service
+      After=crowdsec-web-nftables.service
+      Requires=crowdsec-web-nftables.service
       PartOf=crowdsec.service
 
       [Service]
       Type=simple
-      ExecStartPre=/usr/sbin/nft -f /etc/nftables/crowdsec-web.conf
       ExecStart=/usr/sbin/crowdsec-firewall-bouncer -c /etc/crowdsec/bouncers/crowdsec-firewall-bouncer-web.yaml
       Restart=on-failure
       RestartSec=5
@@ -709,7 +749,9 @@
     - crowdsec_firewall_bouncer_enabled | bool
     - crowdsec_web_scope_http_bans | bool
 
-# Step 6: Flush handlers so systemd reload + bouncer restart happen before start.
+# Step 6: Flush handlers so systemd reload + oneshot start + bouncer restart happen in order.
+# Handler definition order in handlers/main.yml guarantees:
+#   Reload systemd daemon -> Restart crowdsec-web-nftables -> Restart crowdsec-firewall-bouncer-web
 - name: Flush handlers before web bouncer enable
   ansible.builtin.meta: flush_handlers
   when:
@@ -717,7 +759,18 @@
     - crowdsec_firewall_bouncer_enabled | bool
     - crowdsec_web_scope_http_bans | bool
 
-# Step 7: Enable and start web bouncer service.
+# Step 7: Enable and start both units.
+# Enable + start the oneshot first so the nft table is laid before the bouncer.
+- name: Enable and start crowdsec-web-nftables oneshot unit
+  ansible.builtin.service:
+    name: crowdsec-web-nftables
+    enabled: true
+    state: started
+  when:
+    - crowdsec_enabled | bool
+    - crowdsec_firewall_bouncer_enabled | bool
+    - crowdsec_web_scope_http_bans | bool
+
 - name: Enable and start web bouncer service
   ansible.builtin.service:
     name: crowdsec-firewall-bouncer-web
@@ -729,7 +782,7 @@
     - crowdsec_web_scope_http_bans | bool
 
 # Step 8: Verify the nft table exists and the service is active.
-# Table pre-existence is guaranteed by ExecStartPre; this check confirms
+# Table pre-existence is guaranteed by the oneshot unit; this check confirms
 # the bouncer started cleanly (not crashed, not activating-looping).
 - name: Flush handlers before web bouncer verification
   ansible.builtin.meta: flush_handlers
@@ -792,11 +845,22 @@
 # ---------------------------------------------------------------------------
 # REVERT PATH — crowdsec_web_scope_http_bans: false
 # Tear down the web bouncer cleanly: no orphaned service, config, nft table,
-# or LAPI registration.
+# or LAPI registration. Both the bouncer unit AND the oneshot loader unit
+# are stopped, disabled, and removed.
 # ---------------------------------------------------------------------------
 - name: Stop and disable web bouncer service (revert path)
   ansible.builtin.service:
     name: crowdsec-firewall-bouncer-web
+    enabled: false
+    state: stopped
+  failed_when: false
+  when:
+    - crowdsec_enabled | bool
+    - not (crowdsec_web_scope_http_bans | bool)
+
+- name: Stop and disable crowdsec-web-nftables oneshot unit (revert path)
+  ansible.builtin.service:
+    name: crowdsec-web-nftables
     enabled: false
     state: stopped
   failed_when: false
@@ -813,6 +877,15 @@
     - crowdsec_enabled | bool
     - not (crowdsec_web_scope_http_bans | bool)
 
+- name: Remove crowdsec-web-nftables oneshot unit (revert path)
+  ansible.builtin.file:
+    path: /etc/systemd/system/crowdsec-web-nftables.service
+    state: absent
+  notify: Reload systemd daemon
+  when:
+    - crowdsec_enabled | bool
+    - not (crowdsec_web_scope_http_bans | bool)
+
 - name: Remove web bouncer config file (revert path)
   ansible.builtin.file:
     path: /etc/crowdsec/bouncers/crowdsec-firewall-bouncer-web.yaml
@@ -823,7 +896,7 @@
 
 - name: Remove crowdsec-web nftables config file (revert path)
   ansible.builtin.file:
-    path: /etc/nftables/crowdsec-web.conf
+    path: /etc/nftables.d/crowdsec-web.conf
     state: absent
   when:
     - crowdsec_enabled | bool
