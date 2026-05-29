@@ -33,3 +33,8 @@
   ansible.builtin.service:
     name: crowdsec-firewall-bouncer-web
     state: restarted
+
+- name: Apply crowdsec-web nftables
+  ansible.builtin.command:
+    cmd: nft -f /etc/nftables/crowdsec-web.conf
+  changed_when: true

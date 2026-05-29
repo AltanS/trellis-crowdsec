@@ -552,37 +552,116 @@
 # =============================================================================
 # Implements the two-bouncer design: a second firewall-bouncer instance that
 # only processes type:web-ban decisions and enforces them with a port-scoped
-# nftables rule (tcp dport {80,443} drop). The default bouncer continues to
+# nftables drop (tcp dport {80,443} ONLY). The default bouncer continues to
 # handle type:ban all-ports for SSH brute-force and manual ip_blocklist.
 #
+# Architecture (v0.9.5 — empirically validated on bild staging 2026-05-29):
+#   - Bouncer runs in set-only mode: writes IPs into pre-created sets in the
+#     crowdsec-web table. Does NOT manage rules itself.
+#   - nftables-crowdsec-web.conf.j2 owns the table, sets, and port-scoped chain.
+#   - ExecStartPre on the bouncer service re-applies the nft template on every
+#     (re)start, guaranteeing the table pre-exists before the bouncer connects.
+#   - API key is idempotent: existing key extracted from deployed config on each
+#     provision; fresh key minted only when the config is absent or key is blank.
+#
 # Enabled when crowdsec_web_scope_http_bans: true (default).
-# Full teardown when crowdsec_web_scope_http_bans: false (no orphaned service/table).
+# Full teardown when crowdsec_web_scope_http_bans: false (no orphaned resources).
 
 # ---------------------------------------------------------------------------
 # ENABLE PATH — crowdsec_web_scope_http_bans: true
 # ---------------------------------------------------------------------------
-- name: Check if web firewall bouncer is already registered
-  ansible.builtin.command:
-    cmd: cscli bouncers list -o raw
-  register: web_bouncer_list
-  changed_when: false
-  when:
-    - crowdsec_enabled | bool
-    - crowdsec_firewall_bouncer_enabled | bool
-    - crowdsec_web_scope_http_bans | bool
 
-- name: Register web firewall bouncer with LAPI
-  ansible.builtin.command:
-    cmd: cscli bouncers add firewall-bouncer-web -o raw
-  register: web_bouncer_key
-  changed_when: web_bouncer_key.rc == 0
+# Step 1: Idempotent API key resolution.
+# Slurp the existing config (if any) and extract a non-empty api_key.
+# Reuse it if found; mint a fresh key if absent or blank.
+- name: Slurp existing web bouncer config (key persistence check)
+  ansible.builtin.slurp:
+    src: /etc/crowdsec/bouncers/crowdsec-firewall-bouncer-web.yaml
+  register: web_bouncer_config_slurp
   failed_when: false
   when:
     - crowdsec_enabled | bool
     - crowdsec_firewall_bouncer_enabled | bool
     - crowdsec_web_scope_http_bans | bool
-    - "'firewall-bouncer-web' not in web_bouncer_list.stdout"
 
+- name: Extract existing web bouncer API key from config
+  ansible.builtin.set_fact:
+    crowdsec_web_bouncer_api_key: >-
+      {{
+        (web_bouncer_config_slurp.content | b64decode)
+        | regex_search('^api_key:\s+(\S+)', '\1', multiline=True)
+        | first
+        | default('')
+      }}
+  when:
+    - crowdsec_enabled | bool
+    - crowdsec_firewall_bouncer_enabled | bool
+    - crowdsec_web_scope_http_bans | bool
+    - web_bouncer_config_slurp is not failed
+    - web_bouncer_config_slurp.content is defined
+
+- name: Default API key to empty string when config is absent
+  ansible.builtin.set_fact:
+    crowdsec_web_bouncer_api_key: ''
+  when:
+    - crowdsec_enabled | bool
+    - crowdsec_firewall_bouncer_enabled | bool
+    - crowdsec_web_scope_http_bans | bool
+    - crowdsec_web_bouncer_api_key is not defined
+
+# Step 2: Mint a fresh key when the existing one is empty.
+# Deregister first (idempotent — removes stale registration if present).
+- name: Deregister stale web bouncer registration before fresh mint
+  ansible.builtin.command:
+    cmd: cscli bouncers delete firewall-bouncer-web
+  failed_when: false
+  changed_when: true
+  when:
+    - crowdsec_enabled | bool
+    - crowdsec_firewall_bouncer_enabled | bool
+    - crowdsec_web_scope_http_bans | bool
+    - crowdsec_web_bouncer_api_key == ''
+
+- name: Register web firewall bouncer with LAPI (mint fresh key)
+  ansible.builtin.command:
+    cmd: cscli bouncers add firewall-bouncer-web -o raw
+  register: web_bouncer_key_fresh
+  changed_when: web_bouncer_key_fresh.rc == 0
+  failed_when: web_bouncer_key_fresh.rc != 0
+  when:
+    - crowdsec_enabled | bool
+    - crowdsec_firewall_bouncer_enabled | bool
+    - crowdsec_web_scope_http_bans | bool
+    - crowdsec_web_bouncer_api_key == ''
+
+- name: Set API key fact from freshly minted key
+  ansible.builtin.set_fact:
+    crowdsec_web_bouncer_api_key: "{{ web_bouncer_key_fresh.stdout | trim }}"
+  when:
+    - crowdsec_enabled | bool
+    - crowdsec_firewall_bouncer_enabled | bool
+    - crowdsec_web_scope_http_bans | bool
+    - web_bouncer_key_fresh is defined
+    - web_bouncer_key_fresh.rc is defined
+    - web_bouncer_key_fresh.rc == 0
+
+# Step 3: Deploy the nft table config.
+# This file is also re-applied via ExecStartPre on every bouncer start.
+- name: Deploy crowdsec-web nftables table config
+  ansible.builtin.template:
+    src: nftables-crowdsec-web.conf.j2
+    dest: /etc/nftables/crowdsec-web.conf
+    owner: root
+    group: root
+    mode: '0644'
+  notify: Apply crowdsec-web nftables
+  when:
+    - crowdsec_enabled | bool
+    - crowdsec_firewall_bouncer_enabled | bool
+    - crowdsec_web_scope_http_bans | bool
+
+# Step 4: Deploy web bouncer config — template uses crowdsec_web_bouncer_api_key.
+# Never renders a blank api_key because of Steps 1-2 above.
 - name: Deploy web bouncer config
   ansible.builtin.template:
     src: crowdsec-firewall-bouncer-web.yaml.j2
@@ -596,32 +675,10 @@
     - crowdsec_firewall_bouncer_enabled | bool
     - crowdsec_web_scope_http_bans | bool
 
-- name: Write API key into web bouncer config
-  ansible.builtin.lineinfile:
-    path: /etc/crowdsec/bouncers/crowdsec-firewall-bouncer-web.yaml
-    regexp: '^api_key:'
-    line: "api_key: {{ web_bouncer_key.stdout }}"
-  when:
-    - crowdsec_enabled | bool
-    - crowdsec_firewall_bouncer_enabled | bool
-    - crowdsec_web_scope_http_bans | bool
-    - web_bouncer_key is defined
-    - web_bouncer_key.rc is defined
-    - web_bouncer_key.rc == 0
-  notify: Restart crowdsec-firewall-bouncer-web
-
-- name: Create web bouncer systemd service override directory
-  ansible.builtin.file:
-    path: /etc/systemd/system/crowdsec-firewall-bouncer-web.service.d
-    state: directory
-    owner: root
-    group: root
-    mode: '0755'
-  when:
-    - crowdsec_enabled | bool
-    - crowdsec_firewall_bouncer_enabled | bool
-    - crowdsec_web_scope_http_bans | bool
-
+# Step 5: Deploy web bouncer systemd service unit.
+# ExecStartPre re-applies the nft table on every (re)start, guaranteeing the
+# crowdsec-web table pre-exists before the bouncer connects to LAPI.
+# PartOf=crowdsec.service binds lifecycle so the bouncer restarts with the engine.
 - name: Deploy web bouncer systemd service unit
   ansible.builtin.copy:
     dest: /etc/systemd/system/crowdsec-firewall-bouncer-web.service
@@ -637,6 +694,7 @@
 
       [Service]
       Type=simple
+      ExecStartPre=/usr/sbin/nft -f /etc/nftables/crowdsec-web.conf
       ExecStart=/usr/sbin/crowdsec-firewall-bouncer -c /etc/crowdsec/bouncers/crowdsec-firewall-bouncer-web.yaml
       Restart=on-failure
       RestartSec=5
@@ -651,6 +709,15 @@
     - crowdsec_firewall_bouncer_enabled | bool
     - crowdsec_web_scope_http_bans | bool
 
+# Step 6: Flush handlers so systemd reload + bouncer restart happen before start.
+- name: Flush handlers before web bouncer enable
+  ansible.builtin.meta: flush_handlers
+  when:
+    - crowdsec_enabled | bool
+    - crowdsec_firewall_bouncer_enabled | bool
+    - crowdsec_web_scope_http_bans | bool
+
+# Step 7: Enable and start web bouncer service.
 - name: Enable and start web bouncer service
   ansible.builtin.service:
     name: crowdsec-firewall-bouncer-web
@@ -661,7 +728,9 @@
     - crowdsec_firewall_bouncer_enabled | bool
     - crowdsec_web_scope_http_bans | bool
 
-# Flush handlers so the web bouncer restarts (if notified) before verification.
+# Step 8: Verify the nft table exists and the service is active.
+# Table pre-existence is guaranteed by ExecStartPre; this check confirms
+# the bouncer started cleanly (not crashed, not activating-looping).
 - name: Flush handlers before web bouncer verification
   ansible.builtin.meta: flush_handlers
   when:
@@ -696,9 +765,34 @@
     - web_bouncer_nft_check.rc is defined
     - web_bouncer_nft_check.rc != 0
 
+- name: Check web bouncer service is active (not crashed)
+  ansible.builtin.command:
+    cmd: systemctl is-active crowdsec-firewall-bouncer-web
+  register: web_bouncer_active_check
+  changed_when: false
+  failed_when: false
+  when:
+    - crowdsec_enabled | bool
+    - crowdsec_firewall_bouncer_enabled | bool
+    - crowdsec_web_scope_http_bans | bool
+
+- name: Warn if web bouncer service is not active
+  ansible.builtin.fail:
+    msg: >-
+      CrowdSec web firewall bouncer service is not active (state: {{ web_bouncer_active_check.stdout | default('unknown') }}).
+      The bouncer may have crashed or failed to start. This is likely a config or API key issue.
+      Check: journalctl -u crowdsec-firewall-bouncer-web --no-pager -n 50
+  when:
+    - crowdsec_enabled | bool
+    - crowdsec_firewall_bouncer_enabled | bool
+    - crowdsec_web_scope_http_bans | bool
+    - web_bouncer_active_check.rc is defined
+    - web_bouncer_active_check.rc != 0
+
 # ---------------------------------------------------------------------------
 # REVERT PATH — crowdsec_web_scope_http_bans: false
-# Tear down the web bouncer cleanly: no orphaned service, config, or nft table.
+# Tear down the web bouncer cleanly: no orphaned service, config, nft table,
+# or LAPI registration.
 # ---------------------------------------------------------------------------
 - name: Stop and disable web bouncer service (revert path)
   ansible.builtin.service:
@@ -719,17 +813,17 @@
     - crowdsec_enabled | bool
     - not (crowdsec_web_scope_http_bans | bool)
 
-- name: Remove web bouncer systemd service override directory (revert path)
+- name: Remove web bouncer config file (revert path)
   ansible.builtin.file:
-    path: /etc/systemd/system/crowdsec-firewall-bouncer-web.service.d
+    path: /etc/crowdsec/bouncers/crowdsec-firewall-bouncer-web.yaml
     state: absent
   when:
     - crowdsec_enabled | bool
     - not (crowdsec_web_scope_http_bans | bool)
 
-- name: Remove web bouncer config file (revert path)
+- name: Remove crowdsec-web nftables config file (revert path)
   ansible.builtin.file:
-    path: /etc/crowdsec/bouncers/crowdsec-firewall-bouncer-web.yaml
+    path: /etc/nftables/crowdsec-web.conf
     state: absent
   when:
     - crowdsec_enabled | bool
@@ -744,9 +838,18 @@
     - crowdsec_enabled | bool
     - not (crowdsec_web_scope_http_bans | bool)
 
-- name: Remove web bouncer nftables table (revert path)
+- name: Remove web bouncer nftables table ipv4 (revert path)
   ansible.builtin.command:
     cmd: nft delete table ip crowdsec-web
+  failed_when: false
+  changed_when: true
+  when:
+    - crowdsec_enabled | bool
+    - not (crowdsec_web_scope_http_bans | bool)
+
+- name: Remove web bouncer nftables table ipv6 (revert path)
+  ansible.builtin.command:
+    cmd: nft delete table ip6 crowdsec-web
   failed_when: false
   changed_when: true
   when:

@@ -1,0 +1,39 @@
+#!/usr/sbin/nft -f
+# Managed by Ansible (trellis-crowdsec role) - do not edit manually
+#
+# Port-scoped nftables table for CrowdSec web-ban decisions.
+# Drops banned IPs on tcp dport {80, 443} ONLY — SSH (22) is never affected.
+# The crowdsec-firewall-bouncer-web instance runs in set-only mode and writes
+# IPs into crowdsec-blacklists / crowdsec6-blacklists; this file owns the table,
+# sets, and the port-scoped drop chain.
+#
+# Idempotent flush pattern: create empty → delete → create real.
+# Re-applying this file (e.g. via ExecStartPre on bouncer (re)start) never fails
+# with "File exists" and always leaves the table in a clean known state.
+# The bouncer repopulates the sets from LAPI within update_frequency (10s).
+
+table ip crowdsec-web {}
+delete table ip crowdsec-web
+table ip crowdsec-web {
+  set crowdsec-blacklists {
+    type ipv4_addr
+    flags timeout
+  }
+  chain crowdsec-web-chain-input {
+    type filter hook input priority filter; policy accept;
+    tcp dport { 80, 443 } ip saddr @crowdsec-blacklists drop
+  }
+}
+
+table ip6 crowdsec-web {}
+delete table ip6 crowdsec-web
+table ip6 crowdsec-web {
+  set crowdsec6-blacklists {
+    type ipv6_addr
+    flags timeout
+  }
+  chain crowdsec-web-chain-input {
+    type filter hook input priority filter; policy accept;
+    tcp dport { 80, 443 } ip6 saddr @crowdsec6-blacklists drop
+  }
+}
