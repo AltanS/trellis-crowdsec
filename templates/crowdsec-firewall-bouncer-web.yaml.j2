@@ -1,0 +1,58 @@
+# web-ban bouncer — handles HTTP-attack decisions (web-scope only)
+# Decision type: web-ban — emitted by profiles.yaml for custom HTTP-attack scenarios
+#   (11 built-in role scenarios + sportsight-* stack-defined HTTP scenarios)
+# Port scope: tcp dport {80, 443} ONLY — SSH (22) is NOT affected by web-ban decisions.
+# Default bouncer (crowdsec-firewall-bouncer) handles type: ban (all-ports)
+#   for SSH brute-force (crowdsecurity/sshd) and manual ip_blocklist entries.
+#
+# This file is managed by Ansible (trellis-crowdsec v0.9.4 Path B).
+# Do not edit manually — changes will be overwritten on provision.
+
+mode: nftables
+pid_file: /var/run/crowdsec-firewall-bouncer-web.pid
+log_mode: file
+log_dir: /var/log/
+log_level: info
+log_compression: true
+log_max_size: 100
+log_max_backups: 3
+log_max_age: 30
+
+api_url: http://127.0.0.1:8080/
+api_key: # populated by Ansible during provisioning
+
+# Only process web-ban decisions — SSH brute-force and manual blocklist entries
+# use type: ban and are handled exclusively by the default bouncer instance.
+supported_decisions_types:
+  - web-ban
+
+# How often to poll LAPI for new/expired decisions (seconds)
+update_frequency: 10
+
+# Follow LAPI stream for real-time decision updates
+daemon: true
+
+nftables:
+  ipv4:
+    enabled: true
+    set-only: false
+    # Distinct table name from the default bouncer (which uses "crowdsec")
+    table: crowdsec-web
+    chain: crowdsec-web-chain
+    # Port-scoped rule: drop matching IPs only on HTTP/HTTPS ports.
+    # This is the core SSH-safety guarantee — banned web-attack IPs cannot
+    # block SSH (port 22) because the drop is conditioned on dport {80, 443}.
+    rule: "ip saddr @crowdsec-web-set-ipv4 tcp dport { 80, 443 } drop"
+    priority: 0
+  ipv6:
+    enabled: true
+    set-only: false
+    table: crowdsec-web
+    chain: crowdsec-web-chain-v6
+    rule: "ip6 saddr @crowdsec-web-set-ipv6 tcp dport { 80, 443 } drop"
+    priority: 0
+
+prometheus:
+  enabled: false
+  listen_addr: 127.0.0.1
+  listen_port: 60602

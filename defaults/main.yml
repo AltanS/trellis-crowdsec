@@ -344,3 +344,26 @@ crowdsec_custom_scenarios: []
 #       service: wordpress
 #       type: exploit
 #       remediation: true
+
+# =============================================================================
+# Web-Scope HTTP-Attack Bans (Two-Bouncer Path B Design)
+# =============================================================================
+#
+# When true (default): custom HTTP-attack scenarios emit decision type "web-ban"
+# via profiles.yaml. A second firewall-bouncer instance (crowdsec-firewall-bouncer-web)
+# enforces web-ban decisions with a port-scoped nftables rule: tcp dport {80, 443} drop.
+# SSH (port 22) is NOT affected by web-ban decisions — a false-positive HTTP-attack
+# ban cannot lock out the ops IP from the server.
+#
+# The default bouncer instance is unchanged: it handles type "ban" decisions
+# (SSH brute-force from crowdsecurity/sshd, manual ip_blocklist entries) with the
+# existing all-ports drop chain.
+#
+# When false: the HTTP-attack profiles fall through to default_ip_remediation
+# (type: ban, all-ports — v0.9.3 behavior). The web bouncer service is stopped,
+# disabled, and deregistered from LAPI. The nftables table ip crowdsec-web is
+# removed. No orphaned service or table is left behind.
+#
+# Re-enable: set back to true and re-provision. A new LAPI key is registered and
+# the web bouncer service is re-created cleanly.
+crowdsec_web_scope_http_bans: true

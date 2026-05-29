@@ -28,3 +28,8 @@
     cmd: nft delete table inet trellis_blocklist
   failed_when: false
   changed_when: true
+
+- name: Restart crowdsec-firewall-bouncer-web
+  ansible.builtin.service:
+    name: crowdsec-firewall-bouncer-web
+    state: restarted
