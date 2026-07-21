@@ -7,6 +7,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.9.7] - 2026-07-21
+
+### Fixed
+- Idempotency: `Install CrowdSec collections` (and the sibling scenarios/parsers
+  installs) no longer report `changed` on a converged host. cscli 1.7.x prints the
+  no-op notice ("Nothing to install or remove.") to **stdout** with an empty stderr,
+  and refuses tainted items via a "tainted"/"overwrite" **stderr** warning — the old
+  `changed_when` only inspected stderr for "already"/"overwrite", so an already-installed
+  clean collection was misreported as changed every run. The guard now recognises the
+  stdout no-op and the tainted-refusal signals (old stderr markers kept for pre-1.7 cscli).
+- Idempotency + correctness: `Remove http-probing override when disabled` is now
+  symlink-aware. The Hub's own `http-probing` scenario lives at the same path as a
+  symlink that `cscli collections install` (re)creates; deleting it tainted the owning
+  collection, silently removed real protection, and produced a per-run
+  remove→reload→re-enable churn ping-pong. The task now stats first and only removes a
+  regular-file override (never the Hub symlink).
+
+### Changed
+- Removed the non-standard `galaxy_info.version` key from `meta/main.yml` — role
+  versions are carried by git tags (consumed via `requirements.yml`), and current
+  ansible-lint's meta schema rejects the field (was failing the production profile).
+
 ## [0.9.1] - 2026-03-19
 
 ### Fixed

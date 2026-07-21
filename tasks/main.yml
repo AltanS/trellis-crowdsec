@@ -112,7 +112,19 @@
     cmd: "cscli collections install {{ item }}"
   loop: "{{ crowdsec_collections }}"
   register: collection_install
-  changed_when: "'overwrite' not in collection_install.stderr and 'already' not in collection_install.stderr"
+  # A no-op install is not a change. cscli 1.7.x prints "Nothing to install or
+  # remove." to STDOUT (leaving stderr empty) when the item is already present,
+  # and a tainted item that would need "--force" prints "tainted"/"overwrite" to
+  # STDERR without acting. The older stderr "already" signal is kept for
+  # backwards compatibility with pre-1.7 cscli. Only a genuine install (an
+  # "Action plan" with actions, none of these markers) counts as changed.
+  changed_when: >-
+    ('Nothing to install or remove' not in collection_install.stdout)
+    and ('up to date' not in collection_install.stdout)
+    and ('already' not in collection_install.stdout)
+    and ('tainted' not in collection_install.stderr)
+    and ('overwrite' not in collection_install.stderr)
+    and ('already' not in collection_install.stderr)
   when: crowdsec_enabled | bool
 
 - name: Install additional scenarios
@@ -120,7 +132,14 @@
     cmd: "cscli scenarios install {{ item }}"
   loop: "{{ crowdsec_scenarios }}"
   register: scenario_install
-  changed_when: "'overwrite' not in scenario_install.stderr and 'already' not in scenario_install.stderr"
+  # See "Install CrowdSec collections" for the cscli 1.7.x no-op signals.
+  changed_when: >-
+    ('Nothing to install or remove' not in scenario_install.stdout)
+    and ('up to date' not in scenario_install.stdout)
+    and ('already' not in scenario_install.stdout)
+    and ('tainted' not in scenario_install.stderr)
+    and ('overwrite' not in scenario_install.stderr)
+    and ('already' not in scenario_install.stderr)
   when:
     - crowdsec_enabled | bool
     - crowdsec_scenarios | length > 0
@@ -142,7 +161,14 @@
     cmd: "cscli parsers install {{ item }}"
   loop: "{{ crowdsec_parsers }}"
   register: parser_install
-  changed_when: "'overwrite' not in parser_install.stderr and 'already' not in parser_install.stderr"
+  # See "Install CrowdSec collections" for the cscli 1.7.x no-op signals.
+  changed_when: >-
+    ('Nothing to install or remove' not in parser_install.stdout)
+    and ('up to date' not in parser_install.stdout)
+    and ('already' not in parser_install.stdout)
+    and ('tainted' not in parser_install.stderr)
+    and ('overwrite' not in parser_install.stderr)
+    and ('already' not in parser_install.stderr)
   when:
     - crowdsec_enabled | bool
     - crowdsec_parsers | length > 0
@@ -472,6 +498,20 @@
     - crowdsec_enabled | bool
     - crowdsec_http_probing_exclude_404 | bool
 
+# Only OUR override is a regular file. The Hub's own http-probing scenario at
+# the same path is a symlink into /etc/crowdsec/hub/... that `cscli collections
+# install` (re)creates. Deleting that symlink taints the owning collection and
+# makes the collection re-enable it on the next run — a churn ping-pong (and it
+# silently removes real protection). Stat first and only remove a regular-file
+# override so a converged host stays at changed=0.
+- name: Stat http-probing override before removal
+  ansible.builtin.stat:
+    path: /etc/crowdsec/scenarios/http-probing.yaml
+  register: http_probing_override
+  when:
+    - crowdsec_enabled | bool
+    - not (crowdsec_http_probing_exclude_404 | bool)
+
 - name: Remove http-probing override when disabled
   ansible.builtin.file:
     path: /etc/crowdsec/scenarios/http-probing.yaml
@@ -480,6 +520,8 @@
   when:
     - crowdsec_enabled | bool
     - not (crowdsec_http_probing_exclude_404 | bool)
+    - http_probing_override.stat.exists | default(false)
+    - not (http_probing_override.stat.islnk | default(false))
 
 - name: Deploy custom CrowdSec scenarios
   ansible.builtin.template:
