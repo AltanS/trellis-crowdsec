@@ -367,3 +367,12 @@ crowdsec_custom_scenarios: []
 # Re-enable: set back to true and re-provision. A new LAPI key is registered and
 # the web bouncer service is re-created cleanly.
 crowdsec_web_scope_http_bans: true
+
+# Scenario name prefixes that keep the all-ports ban when web scope is on (v0.9.8).
+# Every other scenario that reaches the default catch-all gets web-ban (80/443).
+# The crowdsecurity/sshd collection ships ssh-bf, ssh-slow-bf, ssh-cve-2024-6387,
+# ssh-refused-conn, ssh-time-based-bf and ssh-bf_user-enum; all share this prefix.
+# Add a prefix here for any non-HTTP scenario a stack installs (e.g. a mail or DB
+# brute-force collection), or it will only be banned on 80/443.
+crowdsec_ssh_scenario_prefixes:
+  - "crowdsecurity/ssh-"

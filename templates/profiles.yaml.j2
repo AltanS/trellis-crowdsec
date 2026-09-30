@@ -9,12 +9,15 @@
 #              (when crowdsec_web_scope_http_bans: true).
 #              Enforced by crowdsec-firewall-bouncer-web: tcp dport {80,443} only.
 #              SSH (port 22) is NOT affected by web-ban decisions.
-#   ban      — emitted by Hub scenarios (sshd, ssh-bf) and the default catch-all.
+#              Since v0.9.8 the default catch-all emits web-ban too, so a Hub
+#              HTTP scenario (http-probing, http-cve, ...) or a stack's custom
+#              HTTP scenario can never cut SSH or the tailnet transport.
+#   ban      — emitted only by the ssh_scenarios profile (crowdsecurity/ssh-*).
 #              Enforced by the default crowdsec-firewall-bouncer: all ports.
-#              Manual ip_blocklist entries also land here.
+#              Manual ip_blocklist entries and `cscli decisions add` also land here.
 #
-# When crowdsec_web_scope_http_bans: false, the HTTP-attack profiles below fall
-# through to the default_ip_remediation block (type: ban, all-ports).
+# When crowdsec_web_scope_http_bans: false, every profile below emits type: ban
+# (all ports), the v0.9.3 behavior.
 
 {% if crowdsec_scenario_actuator_probe | bool %}
 # -----------------------------------------------------------------------------
@@ -221,13 +224,37 @@ decisions:
 on_success: break
 ---
 {% endif %}
+{% if crowdsec_web_scope_http_bans | bool %}
 # -----------------------------------------------------------------------------
-# Default - All other scenarios (CrowdSec Hub scenarios)
+# SSH scenarios - the only Hub scenarios that keep the all-ports ban
 # -----------------------------------------------------------------------------
+# An SSH brute-force source is hostile on every port, so it stays type: ban.
+# Everything else that reaches the catch-all below is an HTTP scenario.
+name: ssh_scenarios
+filters:
+  - Alert.Remediation == true && Alert.GetScope() == "Ip" && ({% for prefix in crowdsec_ssh_scenario_prefixes %}Alert.GetScenario() startsWith "{{ prefix }}"{% if not loop.last %} || {% endif %}{% endfor %})
+decisions:
+  - type: ban
+    duration: {{ crowdsec_ban_duration_default }}
+on_success: break
+---
+{% endif %}
+# -----------------------------------------------------------------------------
+# Default - All other scenarios (CrowdSec Hub + stack custom scenarios)
+# -----------------------------------------------------------------------------
+# With web scope on, these are HTTP scenarios (the SSH ones matched above), so
+# the ban is port-scoped to 80/443. Before v0.9.8 this was type: ban on all
+# ports: one false-positive http-probing alert dropped every packet from the
+# source, including SSH and the Tailscale UDP transport, so the tailnet
+# whitelist never saw the connection.
 name: default_ip_remediation
 filters:
   - Alert.Remediation == true && Alert.GetScope() == "Ip"
 decisions:
+{% if crowdsec_web_scope_http_bans | bool %}
+  - type: web-ban
+{% else %}
   - type: ban
+{% endif %}
     duration: {{ crowdsec_ban_duration_default }}
 on_success: break

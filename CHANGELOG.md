@@ -7,6 +7,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.9.8] - 2026-09-30
+
+### Fixed
+- Web scope: a Hub HTTP scenario (`crowdsecurity/http-probing`, `http-cve`, ...) or a
+  stack's custom HTTP scenario fell through to `default_ip_remediation` and got
+  `type: ban` on ALL ports. One false-positive alert dropped every packet from the
+  source, including SSH and the Tailscale UDP transport, so the tailnet whitelist
+  never saw the connection (klaracase prod, 2026-09-29). With
+  `crowdsec_web_scope_http_bans: true` the catch-all now emits `web-ban` (80/443).
+
+### Added
+- `ssh_scenarios` profile, ahead of the catch-all when web scope is on: scenarios
+  whose name starts with a prefix in `crowdsec_ssh_scenario_prefixes` (default
+  `crowdsecurity/ssh-`) keep the all-ports `ban`. Add a prefix for any other
+  non-HTTP scenario a stack installs.
+
+### Verified
+- Log replay on crowdsec v1.8.1: http-probing -> `web-ban`, ssh-bf / ssh-slow-bf ->
+  `ban`. The same replay on the v0.9.7 profiles gave http-probing `ban`.
+
 ## [0.9.7] - 2026-07-21
 
 ### Fixed

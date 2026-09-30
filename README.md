@@ -496,6 +496,7 @@ Duration format: `30m` (minutes), `4h` (hours), `7d` (days)
 | `crowdsec_scenarios_remove`         | `[]`          | Scenarios to remove               |
 | `crowdsec_http_probing_exclude_404` | `false`       | Exclude 404s from http-probing    |
 | `crowdsec_ban_duration_default`     | `24h`         | Default ban for Hub scenarios     |
+| `crowdsec_ssh_scenario_prefixes`    | `[crowdsecurity/ssh-]` | Scenarios that keep the all-ports ban under web scope |
 | `crowdsec_acquisition`              | Trellis paths | Log file acquisition              |
 | `crowdsec_firewall_bouncer_enabled` | `true`        | Install firewall bouncer          |
 | `crowdsec_ip_blocklist_duration`     | `87600h`      | Block duration (10 years)         |
