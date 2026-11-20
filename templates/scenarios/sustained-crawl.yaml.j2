@@ -15,6 +15,10 @@
 # view. API abuse (injection, XSS, SQLi) is still caught by dedicated
 # attack-detection scenarios.
 #
+# Pairs in crowdsec_crawl_exclude_ua_ip_pairs are excluded only when BOTH the
+# user agent substring and the exact source IP match (a known crawler from a
+# known address; neither alone is enough).
+#
 # User agents matching crowdsec_crawl_exclude_user_agents are excluded for
 # legitimate crawlers. Googlebot/Bingbot are already excluded by
 # crowdsecurity/whitelist-good-actors.
@@ -25,12 +29,15 @@ description: "Detect slow-but-persistent crawling by total request volume"
 filter: |
   evt.Meta.log_type in ['http_access-log', 'http_error-log'] and
   evt.Parsed.static_ressource == 'false' and
-  evt.Parsed.verb in ['GET', 'HEAD']{{ " and" if crowdsec_crawl_exclude_paths | default([]) or crowdsec_crawl_exclude_user_agents | default([]) else "" }}
+  evt.Parsed.verb in ['GET', 'HEAD']{{ " and" if crowdsec_crawl_exclude_paths | default([]) or crowdsec_crawl_exclude_user_agents | default([]) or crowdsec_crawl_exclude_ua_ip_pairs | default([]) else "" }}
 {% for path in crowdsec_crawl_exclude_paths | default([]) %}
-  !(evt.Meta.http_path startsWith '{{ path }}'){{ " and" if not loop.last or crowdsec_crawl_exclude_user_agents | default([]) else "" }}
+  !(evt.Meta.http_path startsWith '{{ path }}'){{ " and" if not loop.last or crowdsec_crawl_exclude_user_agents | default([]) or crowdsec_crawl_exclude_ua_ip_pairs | default([]) else "" }}
 {% endfor %}
 {% for ua in crowdsec_crawl_exclude_user_agents | default([]) %}
-  !(evt.Meta.http_user_agent contains '{{ ua }}'){{ " and" if not loop.last else "" }}
+  !(evt.Meta.http_user_agent contains '{{ ua }}'){{ " and" if not loop.last or crowdsec_crawl_exclude_ua_ip_pairs | default([]) else "" }}
+{% endfor %}
+{%- for pair in crowdsec_crawl_exclude_ua_ip_pairs | default([]) %}
+  !(evt.Meta.http_user_agent contains '{{ pair.user_agent }}' and evt.Meta.source_ip == '{{ pair.ip }}'){{ " and" if not loop.last else "" }}
 {% endfor %}
 groupby: evt.Meta.source_ip
 capacity: {{ crowdsec_scenario_sustained_crawl_capacity }}

@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.9.6.1] - 2026-11-20
+
+### Added
+- `crowdsec_crawl_exclude_ua_ip_pairs`: a list of `{user_agent, ip}` pairs. A request is left out of `custom/aggressive-crawl` and `custom/sustained-crawl` only when BOTH the user agent substring and the exact source IP match. Default `[]`, so the rendered scenarios are unchanged for every existing host. All other scenarios still apply to the pair. Branch from v0.9.6 so hosts pinned to v0.9.6 get only this change.
+
 ## [0.9.1] - 2026-03-19
 
 ### Fixed

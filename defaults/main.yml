@@ -84,6 +84,15 @@ crowdsec_crawl_exclude_paths:
 # Googlebot/Bingbot are already excluded by crowdsecurity/whitelist-good-actors.
 crowdsec_crawl_exclude_user_agents:
   - "Ahrefs"
+
+# Known crawlers excluded from crawl detection only when BOTH the user agent
+# substring AND the exact source IP match. Safer than a UA alone (spoofable)
+# and narrower than ip_whitelist (which skips every scenario, attacks too).
+# Only aggressive-crawl and sustained-crawl read this list.
+# Example:
+#   crowdsec_crawl_exclude_ua_ip_pairs:
+#     - { user_agent: "AnchorGeniusBot", ip: "159.195.252.212" }
+crowdsec_crawl_exclude_ua_ip_pairs: []
 #
 # SCENARIO PARAMETERS:
 # --------------------
