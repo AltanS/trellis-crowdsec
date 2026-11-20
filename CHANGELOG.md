@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.9.6.2] - 2026-11-21
+
+### Added
+- The play fails before any decision is imported when an `ip_blocklist` entry is not a valid IP or is a CIDR range with host bits set (for example `85.203.15.0/16`, which cscli accepts and turns into a ban of all of `85.203.0.0/16`). Runs on the controller with the Python standard library.
+
 ## [0.9.6.1] - 2026-11-20
 
 ### Added

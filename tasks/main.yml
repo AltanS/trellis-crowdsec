@@ -350,6 +350,40 @@
 # =============================================================================
 # Blocked IPs Import
 # =============================================================================
+- name: Validate ip_blocklist entries (valid IPs, no host bits after a CIDR prefix)
+  # A range such as 85.203.15.0/16 is accepted by cscli and bans all of
+  # 85.203.0.0/16, which is almost never what the author meant. Fail the play
+  # before any decision is written. Runs on the controller (stdlib ipaddress).
+  ansible.builtin.command:
+    argv:
+      - "{{ ansible_playbook_python }}"
+      - "-c"
+      - |
+        import ipaddress, json, sys
+        bad = []
+        for entry in json.loads(sys.argv[1]):
+            try:
+                if "/" in str(entry):
+                    ipaddress.ip_network(str(entry), strict=True)
+                else:
+                    ipaddress.ip_address(str(entry))
+            except ValueError as err:
+                bad.append(f"{entry}: {err}")
+        if bad:
+            print("ip_blocklist has invalid entries:")
+            print("\n".join(bad))
+            sys.exit(1)
+        print("ip_blocklist ok")
+      - "{{ ip_blocklist | default([]) | to_json }}"
+  delegate_to: localhost
+  become: false
+  run_once: true
+  changed_when: false
+  check_mode: false
+  when:
+    - crowdsec_enabled | bool
+    - ip_blocklist | default([]) | length > 0
+
 - name: Import blocked single IPs as CrowdSec decisions
   ansible.builtin.command:
     cmd: >
